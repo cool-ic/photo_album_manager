@@ -23,45 +23,37 @@ body, html {
 .menu-bar h2 { text-align: center; }
 .menu-item { margin-bottom: 15px; }
 .menu-item label { display: block; margin-bottom: 5px; }
-
-/* Default styling for form elements and general buttons in the menu bar */
-.menu-item input[type='number'],
-.menu-item select,
-.menu-item button {
+.menu-item input[type='number'], .menu-item select, .menu-item button {
     width: 100%;
     padding: 8px;
-    margin-top: 5px;
-    margin-bottom: 5px;
+    margin-top: 5px; /* Keep existing top margin */
+    margin-bottom: 5px; /* Add consistent bottom margin */
     box-sizing: border-box;
     border: 1px solid #555;
     border-radius: 3px;
-    background-color: #444; /* Default background for most menu buttons */
+    background-color: #444;
     color: white;
 }
 .menu-item button:hover {
-    background-color: #555; /* Default hover for most menu buttons */
+    background-color: #555;
     cursor: pointer;
 }
 
-/* Specific styling for page navigation buttons */
-.menu-bar .pagination button#prev-page,
-.menu-bar .pagination button#next-page {
-    background-color: #0056b3; /* A different blue for page navigation */
-    border-color: #004085;     /* Matching border color */
-    /* margin-bottom is already handled by the general .menu-item button rule if needed,
-       or can be set here if they need unique spacing. */
+/* Ensure select elements are not overly tall if their default height differs */
+.menu-item select {
+    /* No specific height override needed if padding provides consistency */
 }
 
-.menu-bar .pagination button#prev-page:hover,
-.menu-bar .pagination button#next-page:hover {
-    background-color: #003870; /* Darker shade for hover on page nav buttons */
+.menu-bar .pagination button {
+    /* Inherits from .menu-item button, specific overrides can go here if needed */
+    /* margin-bottom: 5px; */ /* Already handled by general button rule */
 }
 
 .menu-bar .pagination #page-info {
     display: block;
     text-align: center;
     padding: 8px 0;
-    margin: 0; /* Rely on button margins for spacing */
+    margin: 0; /* Buttons above/below will provide margin */
     font-size: 0.9em;
     color: #ccc;
 }
@@ -86,15 +78,15 @@ body, html {
     background-color: #ccc;
     background-size: cover;
     background-position: center;
-    border: 2px solid transparent;
+    border: 2px solid transparent; /* Default transparent border */
     box-sizing: border-box;
     cursor: pointer;
-    transition: border-color 0.2s ease-in-out, border-width 0.2s ease-in-out;
+    transition: border-color 0.2s ease-in-out, border-width 0.2s ease-in-out; /* Smooth transition */
 }
 
 .photo-wall .thumbnail-item.selected {
-    border-width: 3px;
-    border-color: #007bff;
+    border-width: 3px; /* Increased border width for selected items */
+    border-color: #007bff; /* Standard Bootstrap primary blue, more vibrant */
 }
 
 .info-panel {

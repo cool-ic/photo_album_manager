@@ -24,46 +24,54 @@ body, html {
 .menu-item { margin-bottom: 15px; }
 .menu-item label { display: block; margin-bottom: 5px; }
 
-/* Default styling for form elements and general buttons in the menu bar */
+/* Unified styling for all form elements and buttons in the menu bar */
 .menu-item input[type='number'],
 .menu-item select,
 .menu-item button {
-    width: 100%;
+    width: 100%; /* Take full width of menu-item content box */
     padding: 8px;
-    margin-top: 5px;
-    margin-bottom: 5px;
+    margin-top: 5px; /* Consistent top margin */
+    margin-bottom: 5px; /* Add some bottom margin too */
     box-sizing: border-box;
     border: 1px solid #555;
-    border-radius: 3px;
-    background-color: #444; /* Default background for most menu buttons */
+    background-color: #444;
     color: white;
+    border-radius: 3px; /* Slightly rounded corners */
 }
 .menu-item button:hover {
-    background-color: #555; /* Default hover for most menu buttons */
+    background-color: #555;
     cursor: pointer;
 }
-
-/* Specific styling for page navigation buttons */
-.menu-bar .pagination button#prev-page,
-.menu-bar .pagination button#next-page {
-    background-color: #0056b3; /* A different blue for page navigation */
-    border-color: #004085;     /* Matching border color */
-    /* margin-bottom is already handled by the general .menu-item button rule if needed,
-       or can be set here if they need unique spacing. */
+/* Ensure selects are not too different in height */
+.menu-item select {
+    height: auto; /* Or a fixed height if padding doesn't make them consistent with buttons */
 }
 
-.menu-bar .pagination button#prev-page:hover,
-.menu-bar .pagination button#next-page:hover {
-    background-color: #003870; /* Darker shade for hover on page nav buttons */
+
+/* Styling for pagination controls within the menu bar */
+/* The .menu-bar .pagination selector targets the div holding the pagination elements */
+.menu-bar .pagination {
+    /* The div.pagination is now inside a div.menu-item */
+    /* No specific styling needed for the .pagination div itself,
+       as its children are styled by the general rules above/below. */
 }
+
+/* Buttons within pagination are already styled by the general .menu-item button rule.
+   If specific overrides were needed (e.g., smaller buttons, side-by-side):
+.menu-bar .pagination button {
+    padding: 5px;
+    display: inline-block;
+    width: auto;
+}
+*/
 
 .menu-bar .pagination #page-info {
     display: block;
     text-align: center;
-    padding: 8px 0;
-    margin: 0; /* Rely on button margins for spacing */
+    padding: 8px 0; /* Match button padding for vertical rhythm */
+    margin: 0; /* Remove default margins if span has them, rely on button margins */
     font-size: 0.9em;
-    color: #ccc;
+    color: #ccc; /* Lighter color for info text */
 }
 
 .content-area {
@@ -89,13 +97,13 @@ body, html {
     border: 2px solid transparent;
     box-sizing: border-box;
     cursor: pointer;
-    transition: border-color 0.2s ease-in-out, border-width 0.2s ease-in-out;
 }
 
 .photo-wall .thumbnail-item.selected {
-    border-width: 3px;
-    border-color: #007bff;
+    border-color: blue;
 }
+
+/* Old .pagination rule (for when it was at bottom of content-area) is removed */
 
 .info-panel {
     width: 250px;
