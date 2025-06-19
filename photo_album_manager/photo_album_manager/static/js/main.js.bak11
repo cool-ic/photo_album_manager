@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded. Initializing application features. Using CSS Grid and dynamic rows. Using parent height for row calc.');
+    console.log('DOM fully loaded. Initializing application features. Using CSS Grid and dynamic rows. Extra logging for getCalculatedPerPage added.');
 
     const photoWall = document.getElementById('photo-wall');
     const prevPageBtn = document.getElementById('prev-page');
@@ -46,36 +46,35 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[getCalculatedPerPage] Starting calculation...');
         const currentPhotosPerRowVal = parseInt(photoWall.style.getPropertyValue('--photos-per-row')) || photosPerRow;
 
-        // Use parentElement.clientHeight (height of .content-area) for available height
-        const availableHeight = photoWall.parentElement ? photoWall.parentElement.clientHeight : window.innerHeight;
-        const wallWidth = photoWall.clientWidth; // clientWidth of photo-wall itself
+        // Ensure dimensions are read *after* potential reflow from CSS changes
+        const wallWidth = photoWall.clientWidth;
+        const wallHeight = photoWall.clientHeight;
         const gap = 10; // CSS gap
 
         console.log(`[getCalculatedPerPage] currentPhotosPerRowVal: ${currentPhotosPerRowVal}`);
-        console.log(`[getCalculatedPerPage] wallWidth: ${wallWidth}, availableHeight (content-area): ${availableHeight}, gap: ${gap}`);
+        console.log(`[getCalculatedPerPage] wallWidth: ${wallWidth}, wallHeight: ${wallHeight}, gap: ${gap}`);
 
-        if (wallWidth === 0 || availableHeight === 0 || currentPhotosPerRowVal === 0) {
-            console.warn('[getCalculatedPerPage] Wall dimensions, availableHeight or photosPerRow is zero. Defaulting perPage.');
+        if (wallWidth === 0 || wallHeight === 0 || currentPhotosPerRowVal === 0) {
+            console.warn('[getCalculatedPerPage] Wall dimensions or photosPerRow is zero. Defaulting perPage.');
             return currentPhotosPerRowVal > 0 ? currentPhotosPerRowVal * 4 : 20;
         }
 
         const columnWidth = (wallWidth - (currentPhotosPerRowVal - 1) * gap) / currentPhotosPerRowVal;
         console.log(`[getCalculatedPerPage] columnWidth: ${columnWidth.toFixed(2)}`);
 
-        const thumbHeight = columnWidth; // Since aspect-ratio is 1/1
+        const thumbHeight = columnWidth;
         console.log(`[getCalculatedPerPage] thumbHeight (equal to columnWidth): ${thumbHeight.toFixed(2)}`);
 
         const singleRowTotalHeight = thumbHeight + gap;
         console.log(`[getCalculatedPerPage] singleRowTotalHeight (thumbHeight + gap): ${singleRowTotalHeight.toFixed(2)}`);
 
-        if (singleRowTotalHeight <= gap) { // If thumbHeight is 0 or negative
-            console.warn('[getCalculatedPerPage] singleRowTotalHeight is too small (<= gap). Defaulting numRows to 1, perPage to photosPerRow.');
-            return currentPhotosPerRowVal;
+        if (singleRowTotalHeight <= 0) {
+            console.warn('[getCalculatedPerPage] singleRowTotalHeight is zero or negative. Defaulting perPage.');
+            return currentPhotosPerRowVal * 4;
         }
 
-        // Calculate how many rows can fit using the availableHeight of the parent container.
-        const numRows = Math.max(1, Math.floor(availableHeight / singleRowTotalHeight));
-        console.log(`[getCalculatedPerPage] Calculated numRows: ${numRows} (based on availableHeight ${availableHeight} / singleRowTotalHeight ${singleRowTotalHeight.toFixed(2)})`);
+        const numRows = Math.max(1, Math.floor(wallHeight / singleRowTotalHeight));
+        console.log(`[getCalculatedPerPage] Calculated numRows: ${numRows} (based on wallHeight ${wallHeight} / singleRowTotalHeight ${singleRowTotalHeight.toFixed(2)})`);
 
         const calculatedPerPage = currentPhotosPerRowVal * numRows;
         console.log(`[getCalculatedPerPage] Initial calculatedPerPage (photosPerRow * numRows): ${calculatedPerPage}`);
@@ -86,11 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        // Attempt to force browser reflow before reading dimensions in getCalculatedPerPage
-        if (photoWall) void photoWall.offsetHeight;
-        console.log('Forced reflow via offsetHeight read before getCalculatedPerPage.');
-
-        const calculatedPerPage = getCalculatedPerPage();
+        const calculatedPerPage = getCalculatedPerPage(); // Dimensions should be current here
         lastCalculatedPerPage = calculatedPerPage;
         const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
         console.log(`Fetching media from: ${apiUrl}`);
@@ -138,7 +133,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Size input changed to ${newSize} photos per row.`);
             photosPerRow = newSize;
             photoWall.style.setProperty('--photos-per-row', photosPerRow);
-            // Reflow is now attempted at start of fetchMedia
+            // Attempt to force browser reflow before reading dimensions in getCalculatedPerPage
+            void photoWall.offsetHeight;
+            console.log('Forced reflow via offsetHeight read after sizeInput change.');
             clearSelectionsAndUndoHistory();
             fetchMedia(1);
         } else {
@@ -150,7 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
             console.log('Window resized, preparing to recalculate layout.');
-            // Reflow is now attempted at start of fetchMedia, which is called below if needed
+            // Force reflow before reading dimensions after resize as well
+            void photoWall.offsetHeight;
+            console.log('Forced reflow via offsetHeight read post-resize.');
             const newCalculatedPerPage = getCalculatedPerPage();
             if (newCalculatedPerPage !== lastCalculatedPerPage) {
                 console.log(`Calculated perPage changed due to resize from ${lastCalculatedPerPage} to ${newCalculatedPerPage}. Re-fetching.`);
