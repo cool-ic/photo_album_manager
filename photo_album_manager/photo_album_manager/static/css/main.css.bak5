@@ -23,45 +23,79 @@ body, html {
 .menu-bar h2 { text-align: center; }
 .menu-item { margin-bottom: 15px; }
 .menu-item label { display: block; margin-bottom: 5px; }
-.menu-item input[type='number'], .menu-item select, .menu-item button {
+
+/* Default styling for form elements and general buttons in the menu bar */
+.menu-item input[type='number'],
+.menu-item select,
+.menu-item button {
     width: 100%;
     padding: 8px;
     margin-top: 5px;
-    margin-bottom: 5px; /* Added consistent bottom margin */
+    margin-bottom: 5px;
     box-sizing: border-box;
     border: 1px solid #555;
     border-radius: 3px;
-    background-color: #444;
+    background-color: #444; /* Default background for most menu buttons */
     color: white;
 }
 .menu-item button:hover {
-    background-color: #555;
+    background-color: #555; /* Default hover for most menu buttons */
     cursor: pointer;
 }
 
+/* Specific styling for page navigation buttons */
 .menu-bar .pagination button#prev-page,
 .menu-bar .pagination button#next-page {
-    background-color: #0056b3;
-    border-color: #004085;
-    /* margin-bottom: 5px; */ /* Already handled by general button rule */
+    background-color: #0056b3; /* A different blue for page navigation */
+    border-color: #004085;     /* Matching border color */
+    /* margin-bottom is already handled by the general .menu-item button rule if needed,
+       or can be set here if they need unique spacing. */
 }
+
 .menu-bar .pagination button#prev-page:hover,
 .menu-bar .pagination button#next-page:hover {
-    background-color: #003870;
+    background-color: #003870; /* Darker shade for hover on page nav buttons */
 }
+
 .menu-bar .pagination #page-info {
     display: block;
     text-align: center;
     padding: 8px 0;
-    margin: 0;
+    margin: 0; /* Rely on button margins for spacing */
     font-size: 0.9em;
     color: #ccc;
 }
 
-.content-area { flex-grow:1;padding:15px;overflow-y:auto;height:100%;box-sizing:border-box; }
-.photo-wall { display:grid;grid-template-columns:repeat(var(--photos-per-row, 5), minmax(0, 1fr));gap:10px; }
-.photo-wall .thumbnail-item { width:100%;aspect-ratio:1 / 1;background-color:#ccc;background-size:cover;background-position:center;border:2px solid transparent;box-sizing:border-box;cursor:pointer;transition:border-color 0.2s ease-in-out, border-width 0.2s ease-in-out; }
-.photo-wall .thumbnail-item.selected { border-width:3px;border-color:#007bff; }
+.content-area {
+    flex-grow: 1;
+    padding: 15px;
+    overflow-y: auto;
+    height: 100%;
+    box-sizing: border-box;
+}
+
+.photo-wall {
+    display: grid;
+    grid-template-columns: repeat(var(--photos-per-row, 5), minmax(0, 1fr));
+    gap: 10px;
+}
+
+.photo-wall .thumbnail-item {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background-color: #ccc;
+    background-size: cover;
+    background-position: center;
+    border: 2px solid transparent;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.2s ease-in-out, border-width 0.2s ease-in-out;
+}
+
+.photo-wall .thumbnail-item.selected {
+    border-width: 3px;
+    border-color: #007bff;
+}
 
 .info-panel {
     width: 250px;
@@ -73,28 +107,9 @@ body, html {
 }
 .info-panel h3 { margin-top: 0; }
 .info-panel ul { list-style-type: none; padding: 0; }
-.info-panel ul li {
-    padding: 5px;
-    cursor: pointer;
-    border-radius: 3px;
-    margin-bottom: 3px; /* Add some space between tags */
-    border: 1px solid #ccc; /* Default border for all tags */
-    background-color: #f8f9fa; /* Default background for tags */
-    color: #333; /* Default text color for tags */
-}
-.info-panel ul li:hover {
-    background-color: #e2e6ea;
-    border-color: #adb5bd;
-}
-/* Style for tags activated for tagging operations */
-.info-panel ul li.active-for-tagging {
-    background-color: #28a745; /* Green for active tagging selection */
-    color: white;
-    border-color: #1e7e34; /* Darker green border */
-}
-/* Original .active-tag-filter is removed as per prompt.
-   If filtering by clicking tags is a separate feature, it would need its own class or be combined.
-*/
+.info-panel ul li { padding: 5px; cursor: pointer; border-radius: 3px; }
+.info-panel ul li:hover { background-color: #ddd; }
+.info-panel ul li.active-tag-filter { background-color: #007bff; color: white; }
 
 /* Modal styles - unchanged */
 .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }

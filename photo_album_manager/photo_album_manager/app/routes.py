@@ -1,186 +1,142 @@
 from flask import current_app, jsonify, request, send_from_directory, abort, render_template, session
 from .models import db, Media, Tag
-from app.tag_manager import get_all_global_tags, add_global_tag # Import add_global_tag
+from app.tag_manager import get_all_global_tags, add_global_tag, delete_global_tag, add_tags_to_media, set_tags_for_media # Import set_tags_for_media
 from app.image_utils import generate_thumbnail, get_thumbnail_path
 from app.utils import execute_user_filter_function
 from app.scanner import scan_libraries
-import os
-import logging
-import traceback
+import os, logging, traceback
 
-routes_logger = logging.getLogger(__name__ + '.routes')
+# Ensure logger is configured once
+routes_logger = logging.getLogger('photo_album_manager.routes') # Use fixed name
 if not routes_logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - ROUTES - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     routes_logger.addHandler(handler)
     routes_logger.setLevel(logging.DEBUG)
-    # routes_logger.propagate = False # Optional
+    routes_logger.propagate = False
+
 
 @current_app.route('/')
-def index_page():
-    return render_template('index.html')
+def index_page(): return render_template('index.html')
 
 @current_app.route('/api/scan/trigger', methods=['POST'])
 def trigger_scan_endpoint():
-    routes_logger.info("POST /api/scan/trigger - Scan trigger endpoint called.")
-    try:
-        routes_logger.info("Calling scan_libraries()...")
-        scan_libraries()
-        routes_logger.info("scan_libraries() completed successfully via API trigger.")
-        return jsonify({'message': 'Library scan initiated and completed successfully.'}), 200
-    except Exception as e:
-        detailed_error = traceback.format_exc()
-        routes_logger.error(f"Error during API triggered scan: {e}\n{detailed_error}")
-        return jsonify({'error': 'An error occurred during the library scan.', 'details': str(e), 'trace': detailed_error}), 500
+    routes_logger.info("POST /api/scan/trigger called.")
+    try: scan_libraries(); return jsonify({'message': 'Scan completed successfully.'}), 200
+    except Exception as e: routes_logger.error(f'Scan error: {e}', exc_info=True); return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 @current_app.route('/api/media/filter_config', methods=['POST', 'DELETE'])
 def media_filter_config():
     if request.method == 'POST':
-        data = request.get_json()
-        if not data or 'filter_code' not in data:
-            routes_logger.warning("/api/media/filter_config POST: Missing filter_code")
-            return jsonify({'error': 'Missing filter_code in request body'}), 400
-
-        filter_code = data['filter_code']
-        if 'def api_select(media):' not in filter_code:
-             routes_logger.warning(f"POST /api/media/filter_config: 'def api_select(media):' not found in submitted code: {filter_code[:150]}...")
-             return jsonify({'error': 'Filter code must contain "def api_select(media):"'}), 400
-
-        session['media_filter_code'] = filter_code
-        routes_logger.info(f"Saved new media_filter_code to session: {filter_code[:100]}...")
-        return jsonify({'message': 'Filter configuration saved.'}), 200
+        data = request.get_json();
+        if not data or 'filter_code' not in data: return jsonify({'error': 'Missing filter_code'}), 400
+        if 'def api_select(media):' not in data['filter_code']: return jsonify({'error': 'Filter code must contain "def api_select(media):"'}), 400
+        session['media_filter_code'] = data['filter_code'];
+        routes_logger.info(f"Filter config saved. Starts: {data['filter_code'][:100]}...");
+        return jsonify({'message': 'Filter configuration saved.'})
     elif request.method == 'DELETE':
-        removed_filter = session.pop('media_filter_code', None)
-        if removed_filter:
-            routes_logger.info("Cleared media_filter_code from session.")
-        else:
-            routes_logger.info("Attempted to clear media_filter_code, but none was set.")
-        return jsonify({'message': 'Filter configuration cleared.'}), 200
+        session.pop('media_filter_code', None);
+        routes_logger.info("Filter config cleared.");
+        return jsonify({'message': 'Filter configuration cleared.'})
 
 @current_app.route('/api/media', methods=['GET'])
 def list_media():
-    page = request.args.get('page', 1, type=int)
-    per_page_arg = request.args.get('per_page', 20, type=int)
-    sort_by = request.args.get('sort_by', 'capture_time', type=str)
-    sort_order = request.args.get('sort_order', 'desc', type=str)
-    routes_logger.debug(f"/api/media GET request: page={page}, per_page={per_page_arg}, sort_by='{sort_by}', sort_order='{sort_order}'")
-    query = Media.query
-    order_column_map = {
-        'capture_time': Media.capture_time,
-        'modification_time': Media.modification_time,
-        'filepath': Media.filepath,
-        'filename': Media.filename,
-        'filesize': Media.filesize
-    }
-    order_column = order_column_map.get(sort_by, Media.capture_time)
-    query = query.order_by(order_column.asc() if sort_order.lower() == 'asc' else order_column.desc())
-    user_filter_code = session.get('media_filter_code')
-    all_items_from_db = query.all()
-    filtered_items = []
-    if user_filter_code:
-        routes_logger.info(f"Applying user filter from session. Code starts with: {user_filter_code[:100]}...")
-        routes_logger.debug(f"Number of items before filtering: {len(all_items_from_db)}")
-        for item in all_items_from_db:
-            media_dict_for_filter = {
-                'tag': [tag.name for tag in item.tags],
-                'org_PATH': item.org_path,
-                'filename': item.filename,
-                'filepath': item.filepath,
-                'capture_time': item.capture_time.isoformat() if item.capture_time else None,
-                'modification_time': item.modification_time.isoformat() if item.modification_time else None,
-                'filesize': item.filesize,
-                'media_type': item.media_type,
-                'id': item.id
-            }
-            if execute_user_filter_function(media_dict_for_filter, user_filter_code):
-                filtered_items.append(item)
-        routes_logger.info(f"Number of items after filtering: {len(filtered_items)}")
-    else:
-        routes_logger.debug("No user filter in session. Using all items from DB query.")
-        filtered_items = all_items_from_db
-    total_items = len(filtered_items)
-    start_index = (page - 1) * per_page_arg
-    end_index = start_index + per_page_arg
-    paginated_slice = filtered_items[start_index:end_index]
-    total_pages = (total_items + per_page_arg - 1) // per_page_arg if per_page_arg > 0 else 0
-    if total_items == 0: total_pages = 0
-    routes_logger.debug(f"Pagination: total_items={total_items}, page={page}, per_page={per_page_arg}, returning {len(paginated_slice)} items for this page.")
-    media_list_response = [
-        {
-            'id': item_in_slice.id, 'filepath': item_in_slice.filepath, 'filename': item_in_slice.filename,
-            'org_path': item_in_slice.org_path,
-            'capture_time': item_in_slice.capture_time.isoformat() if item_in_slice.capture_time else None,
-            'modification_time': item_in_slice.modification_time.isoformat() if item_in_slice.modification_time else None,
-            'filesize': item_in_slice.filesize, 'media_type': item_in_slice.media_type,
-            'tags': [tag.name for tag in item_in_slice.tags]
-        } for item_in_slice in paginated_slice
-    ]
-    return jsonify({
-        'media': media_list_response, 'total_pages': total_pages,
-        'current_page': page, 'total_items': total_items
-    })
+    page=request.args.get('page',1,type=int); per_page_arg=request.args.get('per_page',20,type=int)
+    sort_by=request.args.get('sort_by','capture_time',type=str); sort_order=request.args.get('sort_order','desc',type=str)
+    routes_logger.debug(f"GET /api/media: page={page}, per_page={per_page_arg}, sort_by='{sort_by}', sort_order='{sort_order}'")
+    q=Media.query
+    om={'capture_time':Media.capture_time,'modification_time':Media.modification_time,'filepath':Media.filepath,'filename':Media.filename,'filesize':Media.filesize}
+    oc=om.get(sort_by,Media.capture_time); q=q.order_by(oc.asc() if sort_order.lower()=='asc' else oc.desc())
+    ufc=session.get('media_filter_code'); db_items=q.all(); fi=[]
+    if ufc:
+        routes_logger.info(f"Applying user filter. Starts: {ufc[:100]}..."); routes_logger.debug(f"Items before filter: {len(db_items)}")
+        for i in db_items:
+            md={'tag':[t.name for t in i.tags],'org_PATH':i.org_path,'filename':i.filename,'filepath':i.filepath,'capture_time':i.capture_time.isoformat() if i.capture_time else None,'modification_time':i.modification_time.isoformat() if i.modification_time else None,'filesize':i.filesize,'media_type':i.media_type,'id':i.id}
+            if execute_user_filter_function(md,ufc): fi.append(i)
+        routes_logger.info(f"Items after filter: {len(fi)}")
+    else: routes_logger.debug("No user filter."); fi=db_items
+    ti=len(fi);si=(page-1)*per_page_arg;ei=si+per_page_arg;ps=fi[si:ei];tp=(ti+per_page_arg-1)//per_page_arg if per_page_arg>0 else 0
+    if ti==0: tp=0
+    routes_logger.debug(f"Pagination: total_items={ti}, page={page}, per_page={per_page_arg}, returning {len(ps)} items.")
+    mlr=[{'id':s.id,'filepath':s.filepath,'filename':s.filename,'org_path':s.org_path,'capture_time':s.capture_time.isoformat() if s.capture_time else None,'modification_time':s.modification_time.isoformat() if s.modification_time else None,'filesize':s.filesize,'media_type':s.media_type,'tags':[t.name for t in s.tags]} for s in ps]
+    return jsonify({'media':mlr,'total_pages':tp,'current_page':page,'total_items':ti})
 
 @current_app.route('/api/tags', methods=['GET', 'POST'])
-def manage_tags_endpoint(): # Renamed function to avoid conflict with model name 'Tag'
+def manage_tags_endpoint():
     if request.method == 'GET':
-        routes_logger.debug("/api/tags GET request")
-        tags = get_all_global_tags()
-        return jsonify([{'id': tag.id, 'name': tag.name} for tag in tags])
-
+        routes_logger.debug("GET /api/tags")
+        return jsonify([{'id': t.id, 'name': t.name} for t in get_all_global_tags()])
     if request.method == 'POST':
-        routes_logger.debug("/api/tags POST request for adding new tag")
-        data = request.get_json()
-        if not data or not data.get('name'):
-            routes_logger.warning("/api/tags POST: Missing 'name' in request body for new tag.")
-            return jsonify({'error': 'Tag name is required.'}), 400
+        routes_logger.debug("POST /api/tags")
+        d=request.get_json(); n=d.get('name','').strip()
+        if not n: routes_logger.warning("Empty tag name on POST /api/tags"); return jsonify({'error': 'Tag name required.'}), 400
+        to=add_global_tag(n);
+        if to: routes_logger.info(f"Tag '{to.name}' processed via POST /api/tags."); return jsonify({'id':to.id,'name':to.name})
+        else: routes_logger.error(f"Failed to add tag '{n}' via POST /api/tags."); return jsonify({'error':'Failed to add tag.'}),500
 
-        tag_name = data['name'].strip()
-        if not tag_name: # Check if empty after stripping
-            routes_logger.warning("/api/tags POST: Tag name cannot be empty after stripping.")
-            return jsonify({'error': 'Tag name cannot be empty.'}), 400
+@current_app.route('/api/tags/<int:tag_id>', methods=['DELETE'])
+def delete_tag_endpoint(tag_id):
+    routes_logger.info(f"DELETE /api/tags/{tag_id}")
+    t=Tag.query.get(tag_id)
+    if not t: routes_logger.warning(f"Tag ID {tag_id} not found for DELETE."); return jsonify({'error': 'Tag not found.'}), 404
+    tag_name_cache = t.name # Cache name for logging, as 't' will be invalid after successful delete
+    if delete_global_tag(t.name): routes_logger.info(f"Tag '{tag_name_cache}' (ID: {tag_id}) deleted."); return jsonify({'message':f"Tag '{tag_name_cache}' deleted."})
+    else: routes_logger.error(f"Failed to delete tag '{tag_name_cache}' (ID: {tag_id})."); return jsonify({'error':'Failed to delete.'}),500
 
-        routes_logger.info(f"Attempting to add global tag: '{tag_name}'")
-        tag_object = add_global_tag(tag_name) # This function handles if tag already exists
+@current_app.route('/api/media/<int:media_id>/tags', methods=['POST', 'PUT'])
+def manage_media_item_tags_endpoint(media_id):
+    media_item = Media.query.get(media_id)
+    if not media_item:
+        routes_logger.warning(f"Media item ID {media_id} not found for tag management.")
+        return jsonify({'error': 'Media item not found.'}), 404
 
-        if tag_object:
-            # add_global_tag in tag_manager.py prints "Tag ... already exists" or "Global tag ... added."
-            # And it returns the tag object (either existing or new).
-            # We can assume success if an object is returned.
-            routes_logger.info(f"Tag '{tag_object.name}' (ID: {tag_object.id}) processed successfully by add_global_tag.")
-            # To determine if it was a new creation for status code 201 vs 200,
-            # add_global_tag would need to return more info, or we query before/after.
-            # For simplicity, a 200 for "processed (created or existed)" is acceptable here.
-            # If we wanted to be more RESTful, check if it existed before to return 201 vs 200.
-            return jsonify({'id': tag_object.id, 'name': tag_object.name}), 200
-        else:
-            # This case implies add_global_tag had an internal error and returned None
-            routes_logger.error(f"add_global_tag returned None for tag_name: '{tag_name}', indicating an internal server issue or unhandled exception in tag_manager.")
-            return jsonify({'error': 'Failed to add tag due to an internal server issue.'}), 500
+    data = request.get_json()
+    if not data or 'tag_names' not in data or not isinstance(data['tag_names'], list):
+        routes_logger.warning(f"Invalid payload for media ID {media_id}: 'tag_names' list required.")
+        return jsonify({'error': "Invalid payload. 'tag_names' must be a list."}), 400
+
+    # Clean tag names: convert to string, strip whitespace, filter out empty strings
+    tag_names = [str(name).strip() for name in data['tag_names'] if str(name).strip()]
+
+    if request.method == 'POST': # Add tags (cumulative)
+        routes_logger.info(f"POST /api/media/{media_id}/tags - Adding tags: {tag_names}")
+        if not tag_names and data['tag_names']: # Original list was non-empty but all stripped to empty
+             return jsonify({'error': 'Tag names cannot be empty or just whitespace.'}), 400
+        if not add_tags_to_media(media_id, tag_names): # Handles empty tag_names list gracefully now
+            routes_logger.error(f"Failed to add tags {tag_names} to media ID {media_id}.")
+            return jsonify({'error': 'Failed to add tags.'}), 500
+        action_message = 'Tags added successfully.'
+    elif request.method == 'PUT': # Set tags (replace all)
+        routes_logger.info(f"PUT /api/media/{media_id}/tags - Setting tags to: {tag_names}")
+        if not set_tags_for_media(media_id, tag_names): # Handles empty tag_names list by clearing tags
+            routes_logger.error(f"Failed to set tags for media ID {media_id} to {tag_names}.")
+            return jsonify({'error': 'Failed to set tags.'}), 500
+        action_message = 'Tags set successfully (replaced existing).'
+
+    db.session.refresh(media_item) # Ensure media_item.tags is up-to-date before creating response
+    updated_tags = [tag.name for tag in media_item.tags]
+    routes_logger.info(f"Successfully processed tags for media ID {media_id}. Current tags: {updated_tags}")
+    return jsonify({'message': action_message, 'media_id': media_id, 'tags': updated_tags}), 200
 
 @current_app.route('/api/org_paths', methods=['GET'])
-def list_org_paths():
-    org_paths = current_app.config.get('ORG_PATHS', [])
-    return jsonify(org_paths)
+def list_org_paths(): return jsonify(current_app.config.get('ORG_PATHS',[]))
 
-@current_app.route('/api/media/file/<int:media_id>', methods=['GET'])
+@current_app.route('/api/media/file/<int:media_id>')
 def get_media_file(media_id):
-    media_item = Media.query.get_or_404(media_id)
-    is_safe_path = any(os.path.abspath(media_item.filepath).startswith(os.path.abspath(org_path_config)) for org_path_config in current_app.config.get('ORG_PATHS', []))
-    if not is_safe_path: abort(403)
-    if not os.path.exists(media_item.filepath): abort(404)
-    return send_from_directory(os.path.dirname(media_item.filepath), os.path.basename(media_item.filepath))
+    m=Media.query.get_or_404(media_id);
+    if not any(os.path.abspath(m.filepath).startswith(os.path.abspath(p)) for p in current_app.config.get('ORG_PATHS',[])): abort(403)
+    if not os.path.exists(m.filepath): abort(404)
+    return send_from_directory(os.path.dirname(m.filepath),os.path.basename(m.filepath))
 
-@current_app.route('/api/media/thumbnail/<int:media_id>', methods=['GET'])
+@current_app.route('/api/media/thumbnail/<int:media_id>')
 def get_media_thumbnail(media_id):
-    media_item = Media.query.get_or_404(media_id)
-    if media_item.media_type != 'image': return jsonify({'message': 'Thumbnails only available for images.'}), 404
-    thumb_full_path, thumb_dir, thumb_filename = get_thumbnail_path(media_item.id)
-    if not os.path.exists(thumb_full_path):
-        generated_path = generate_thumbnail(media_item)
-        if not generated_path: return jsonify({'message': 'Thumbnail generation failed.'}), 500
-    expected_thumb_base = os.path.join(current_app.config.get('BASE_DIR', ''), 'data', 'thumbnails')
-    if not os.path.abspath(thumb_dir).startswith(os.path.abspath(expected_thumb_base)):
-        routes_logger.error(f"Thumbnail path {thumb_dir} is outside expected base {expected_thumb_base}.")
-        abort(403)
-    return send_from_directory(thumb_dir, thumb_filename)
+    m=Media.query.get_or_404(media_id);
+    if m.media_type!='image': return jsonify({'message':'Thumbnails for images only.'}),404
+    tp,td,tf=get_thumbnail_path(m.id);
+    if not os.path.exists(tp):
+        gp=generate_thumbnail(m);
+        if not gp: return jsonify({'message':'Thumbnail generation failed.'}),500
+    etb=os.path.join(current_app.config.get('BASE_DIR',''),'data','thumbnails');
+    if not os.path.abspath(td).startswith(os.path.abspath(etb)): routes_logger.error(f"Thumbnail path {td} outside base {etb}."); abort(403)
+    return send_from_directory(td,tf)
