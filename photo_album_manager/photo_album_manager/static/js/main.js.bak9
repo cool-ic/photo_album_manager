@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded. Initializing application features. Using CSS Grid and dynamic rows. Extra logging for getCalculatedPerPage added.');
+    console.log('DOM fully loaded. Initializing application features. Using CSS Grid and dynamic rows.');
 
     const photoWall = document.getElementById('photo-wall');
     const prevPageBtn = document.getElementById('prev-page');
@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortOrderSelect = document.getElementById('sort-order');
     const refreshBtn = document.getElementById('refresh-btn');
 
+    // Filter Modal Elements (assuming they exist from previous steps)
     const filterConfigBtn = document.getElementById('filter-config-btn');
     const filterConfigModal = document.getElementById('filter-config-modal');
     const filterFunctionInput = document.getElementById('filter-function-input');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearFilterBtn = document.getElementById('clear-filter-btn');
     const filterStatusDiv = document.getElementById('filter-status');
 
+    // Image Viewer Modal Elements (assuming they exist)
     const imageViewerModal = document.getElementById('image-viewer-modal');
     const fullImage = document.getElementById('full-image');
     const modalCaption = document.querySelector('.modal-caption');
@@ -37,56 +39,50 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMediaItems = [];
     let isXKeyPressed = false;
     let resizeTimeout;
-    let lastCalculatedPerPage = 0;
+    let lastCalculatedPerPage = 0; // To track if perPage needs update on resize
 
     document.addEventListener('keydown', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = true; });
     document.addEventListener('keyup', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = false; });
 
     function getCalculatedPerPage() {
-        console.log('[getCalculatedPerPage] Starting calculation...');
         const currentPhotosPerRowVal = parseInt(photoWall.style.getPropertyValue('--photos-per-row')) || photosPerRow;
-
-        // Ensure dimensions are read *after* potential reflow from CSS changes
         const wallWidth = photoWall.clientWidth;
         const wallHeight = photoWall.clientHeight;
-        const gap = 10; // CSS gap
-
-        console.log(`[getCalculatedPerPage] currentPhotosPerRowVal: ${currentPhotosPerRowVal}`);
-        console.log(`[getCalculatedPerPage] wallWidth: ${wallWidth}, wallHeight: ${wallHeight}, gap: ${gap}`);
+        const gap = 10; // CSS gap value
+        const borderHeightPerItem = 4; // 2px top + 2px bottom border
 
         if (wallWidth === 0 || wallHeight === 0 || currentPhotosPerRowVal === 0) {
-            console.warn('[getCalculatedPerPage] Wall dimensions or photosPerRow is zero. Defaulting perPage.');
-            return currentPhotosPerRowVal > 0 ? currentPhotosPerRowVal * 4 : 20;
+            console.warn("Photo wall dimensions or photosPerRow is zero, using default perPage calculation.");
+            return currentPhotosPerRowVal * 4; // Default to 4 rows if dimensions are zero or invalid
         }
 
+        // Calculate width of a single column based on 1fr distribution
+        // This width includes the item's content area + its own borders.
         const columnWidth = (wallWidth - (currentPhotosPerRowVal - 1) * gap) / currentPhotosPerRowVal;
-        console.log(`[getCalculatedPerPage] columnWidth: ${columnWidth.toFixed(2)}`);
 
-        const thumbHeight = columnWidth;
-        console.log(`[getCalculatedPerPage] thumbHeight (equal to columnWidth): ${thumbHeight.toFixed(2)}`);
+        // Since aspect-ratio is 1/1, thumbnail item's total height (content + border) is approx columnWidth.
+        const thumbTotalHeight = columnWidth;
 
-        const singleRowTotalHeight = thumbHeight + gap;
-        console.log(`[getCalculatedPerPage] singleRowTotalHeight (thumbHeight + gap): ${singleRowTotalHeight.toFixed(2)}`);
+        // Height one row of items (including its bottom gap) takes up
+        const singleRowWithGapHeight = thumbTotalHeight + gap;
 
-        if (singleRowTotalHeight <= 0) {
-            console.warn('[getCalculatedPerPage] singleRowTotalHeight is zero or negative. Defaulting perPage.');
+        if (singleRowWithGapHeight <= 0) {
+            console.warn("Calculated single row height is zero or negative, using default perPage.");
             return currentPhotosPerRowVal * 4;
         }
 
-        const numRows = Math.max(1, Math.floor(wallHeight / singleRowTotalHeight));
-        console.log(`[getCalculatedPerPage] Calculated numRows: ${numRows} (based on wallHeight ${wallHeight} / singleRowTotalHeight ${singleRowTotalHeight.toFixed(2)})`);
-
+        // Calculate how many full rows can fit in the visible height of the photo wall
+        const numRows = Math.max(1, Math.floor(wallHeight / singleRowWithGapHeight));
         const calculatedPerPage = currentPhotosPerRowVal * numRows;
-        console.log(`[getCalculatedPerPage] Initial calculatedPerPage (photosPerRow * numRows): ${calculatedPerPage}`);
 
-        const finalPerPage = Math.max(currentPhotosPerRowVal, calculatedPerPage);
-        console.log(`[getCalculatedPerPage] Final perPage to return: ${finalPerPage}`);
-        return finalPerPage;
+        console.log(`Dynamic perPage: wallH=${wallHeight}, photosPerRow=${currentPhotosPerRowVal}, colW/thumbTotalH=${thumbTotalHeight.toFixed(1)}, rowWithGapH=${singleRowWithGapHeight.toFixed(1)}, numRows=${numRows}, perPage=${calculatedPerPage}`);
+        return Math.max(currentPhotosPerRowVal, calculatedPerPage); // Ensure at least one row is fetched
     }
 
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        const calculatedPerPage = getCalculatedPerPage(); // Dimensions should be current here
-        lastCalculatedPerPage = calculatedPerPage;
+        const calculatedPerPage = getCalculatedPerPage();
+        lastCalculatedPerPage = calculatedPerPage; // Store for resize check
+
         const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
         console.log(`Fetching media from: ${apiUrl}`);
         try {
@@ -130,12 +126,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sizeInput.addEventListener('change', () => {
         const newSize = parseInt(sizeInput.value);
         if (newSize > 0) {
-            console.log(`Size input changed to ${newSize} photos per row.`);
+            console.log(`Size changed to ${newSize} photos per row.`);
             photosPerRow = newSize;
             photoWall.style.setProperty('--photos-per-row', photosPerRow);
-            // Attempt to force browser reflow before reading dimensions in getCalculatedPerPage
-            void photoWall.offsetHeight;
-            console.log('Forced reflow via offsetHeight read after sizeInput change.');
             clearSelectionsAndUndoHistory();
             fetchMedia(1);
         } else {
@@ -143,25 +136,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Debounced resize handler
     window.addEventListener('resize', () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
-            console.log('Window resized, preparing to recalculate layout.');
-            // Force reflow before reading dimensions after resize as well
-            void photoWall.offsetHeight;
-            console.log('Forced reflow via offsetHeight read post-resize.');
+            console.log('Window resized, recalculating layout.');
             const newCalculatedPerPage = getCalculatedPerPage();
             if (newCalculatedPerPage !== lastCalculatedPerPage) {
-                console.log(`Calculated perPage changed due to resize from ${lastCalculatedPerPage} to ${newCalculatedPerPage}. Re-fetching.`);
+                console.log(`Calculated perPage changed from ${lastCalculatedPerPage} to ${newCalculatedPerPage}. Re-fetching.`);
                 clearSelectionsAndUndoHistory();
                 fetchMedia(1);
             } else {
-                console.log(`Calculated perPage (${newCalculatedPerPage}) same as last (${lastCalculatedPerPage}) after resize. No re-fetch from resize.`);
+                console.log(`Calculated perPage (${newCalculatedPerPage}) same as last (${lastCalculatedPerPage}). No re-fetch needed from resize.`);
             }
-        }, 300);
+        }, 300); // 300ms debounce
     });
 
-    // --- Minified Unchanged functions ---
+    // --- Minified Unchanged functions for brevity ---
     function toggleSelection(thumbElement, mediaId) { if(selectedMediaIds.has(mediaId)){selectedMediaIds.delete(mediaId);thumbElement.classList.remove('selected')}else{selectedMediaIds.add(mediaId);thumbElement.classList.add('selected')}console.log('Current selection IDs:',Array.from(selectedMediaIds)) }
     function updatePaginationControls() { pageInfoSpan.textContent=`Page ${currentPage} of ${totalPages}`;prevPageBtn.disabled=currentPage<=1;nextPageBtn.disabled=currentPage>=totalPages }
     async function fetchOrgPaths() { try {const r=await fetch('/api/org_paths');const d=await r.json();orgPathsList.innerHTML='';d.forEach(p=>{const l=document.createElement('li');l.textContent=p;orgPathsList.appendChild(l)})}catch(e){console.error('Error fetching org paths:',e)} }

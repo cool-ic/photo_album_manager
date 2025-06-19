@@ -45,8 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function getCalculatedPerPage() {
         console.log('[getCalculatedPerPage] Starting calculation...');
         const currentPhotosPerRowVal = parseInt(photoWall.style.getPropertyValue('--photos-per-row')) || photosPerRow;
-
-        // Ensure dimensions are read *after* potential reflow from CSS changes
         const wallWidth = photoWall.clientWidth;
         const wallHeight = photoWall.clientHeight;
         const gap = 10; // CSS gap
@@ -56,16 +54,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (wallWidth === 0 || wallHeight === 0 || currentPhotosPerRowVal === 0) {
             console.warn('[getCalculatedPerPage] Wall dimensions or photosPerRow is zero. Defaulting perPage.');
-            return currentPhotosPerRowVal > 0 ? currentPhotosPerRowVal * 4 : 20;
+            return currentPhotosPerRowVal > 0 ? currentPhotosPerRowVal * 4 : 20; // Default to 4 rows or 20 items if photosPerRow is also 0
         }
 
         const columnWidth = (wallWidth - (currentPhotosPerRowVal - 1) * gap) / currentPhotosPerRowVal;
-        console.log(`[getCalculatedPerPage] columnWidth: ${columnWidth.toFixed(2)}`);
+        console.log(`[getCalculatedPerPage] columnWidth (approx item total width): ${columnWidth.toFixed(2)}`);
 
+        // Since aspect-ratio is 1/1 and box-sizing is border-box, thumbHeight includes border.
+        // The CSS for .thumbnail-item sets aspect-ratio: 1 / 1 and width: 100% (of grid cell).
+        // So, the height of the item will be equal to the width of the grid cell.
         const thumbHeight = columnWidth;
-        console.log(`[getCalculatedPerPage] thumbHeight (equal to columnWidth): ${thumbHeight.toFixed(2)}`);
+        console.log(`[getCalculatedPerPage] thumbHeight (equal to columnWidth, includes border): ${thumbHeight.toFixed(2)}`);
 
-        const singleRowTotalHeight = thumbHeight + gap;
+        const singleRowTotalHeight = thumbHeight + gap; // This is height of item + gap below it
         console.log(`[getCalculatedPerPage] singleRowTotalHeight (thumbHeight + gap): ${singleRowTotalHeight.toFixed(2)}`);
 
         if (singleRowTotalHeight <= 0) {
@@ -79,13 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const calculatedPerPage = currentPhotosPerRowVal * numRows;
         console.log(`[getCalculatedPerPage] Initial calculatedPerPage (photosPerRow * numRows): ${calculatedPerPage}`);
 
-        const finalPerPage = Math.max(currentPhotosPerRowVal, calculatedPerPage);
+        const finalPerPage = Math.max(currentPhotosPerRowVal, calculatedPerPage); // Ensure at least one row is fetched
         console.log(`[getCalculatedPerPage] Final perPage to return: ${finalPerPage}`);
         return finalPerPage;
     }
 
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        const calculatedPerPage = getCalculatedPerPage(); // Dimensions should be current here
+        const calculatedPerPage = getCalculatedPerPage();
         lastCalculatedPerPage = calculatedPerPage;
         const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
         console.log(`Fetching media from: ${apiUrl}`);
@@ -133,9 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Size input changed to ${newSize} photos per row.`);
             photosPerRow = newSize;
             photoWall.style.setProperty('--photos-per-row', photosPerRow);
-            // Attempt to force browser reflow before reading dimensions in getCalculatedPerPage
-            void photoWall.offsetHeight;
-            console.log('Forced reflow via offsetHeight read after sizeInput change.');
             clearSelectionsAndUndoHistory();
             fetchMedia(1);
         } else {
@@ -147,9 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
             console.log('Window resized, preparing to recalculate layout.');
-            // Force reflow before reading dimensions after resize as well
-            void photoWall.offsetHeight;
-            console.log('Forced reflow via offsetHeight read post-resize.');
             const newCalculatedPerPage = getCalculatedPerPage();
             if (newCalculatedPerPage !== lastCalculatedPerPage) {
                 console.log(`Calculated perPage changed due to resize from ${lastCalculatedPerPage} to ${newCalculatedPerPage}. Re-fetching.`);
