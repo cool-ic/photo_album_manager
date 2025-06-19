@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keyup', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = false; });
 
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        const calculatedPerPage = photosPerRow * 4; // Fetch enough for a few rows
+        const calculatedPerPage = photosPerRow * 4;
         const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
         console.log(`Fetching media from: ${apiUrl}`);
         try {
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             console.log('Received media data:', { currentPage: data.current_page, totalPages: data.total_pages, totalItems: data.total_items, itemsInPage: data.media.length });
             currentMediaItems = data.media;
-            renderPhotoWall(currentMediaItems); // Call renderPhotoWall after currentMediaItems is updated
+            renderPhotoWall(currentMediaItems);
             currentPage = data.current_page;
             totalPages = data.total_pages;
             updatePaginationControls();
@@ -59,36 +59,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPhotoWall(mediaItems) {
-        console.log(`Rendering photo wall with ${mediaItems ? mediaItems.length : 0} items. Photos per row: ${photosPerRow}`);
+        console.log(`Rendering photo wall with ${mediaItems ? mediaItems.length : 0} items.`);
         photoWall.innerHTML = '';
         if (!mediaItems || mediaItems.length === 0) {
             photoWall.innerHTML = '<p>No media found matching your criteria.</p>';
             return;
         }
         const wallWidth = photoWall.clientWidth;
-        const gap = 10; // Corresponds to CSS gap: .photo-wall { gap: 10px; }
-        const borderTotalWidth = 4; // 2px border on each side for .thumbnail-item (border: 2px solid transparent;)
-
-        // Calculate total width available for all thumbnail *content* areas combined (excluding item borders)
-        let totalWidthForAllItemsIncludingTheirBorders = wallWidth - ((photosPerRow - 1) * gap);
-        let singleItemTotalWidth = Math.floor(totalWidthForAllItemsIncludingTheirBorders / photosPerRow);
-
-        // The size we set for width/height should be for the content area of the thumbnail,
-        // so we subtract the border width from the calculated singleItemTotalWidth.
-        let thumbContentSize = singleItemTotalWidth - borderTotalWidth;
-
-        // Ensure minimum size for the content area
-        thumbContentSize = Math.max(50, thumbContentSize);
-
-        console.log(`Wall width: ${wallWidth}px, Item total width (incl. its border): ${singleItemTotalWidth}px, Calculated content thumbSize: ${thumbContentSize}px`);
-
+        const gap = 10;
+        const thumbSize = Math.max(50, Math.floor((wallWidth - (photosPerRow - 1) * gap) / photosPerRow) - 4);
+        console.log(`Calculated thumbnail size: ${thumbSize}px for ${photosPerRow} photos per row.`);
         mediaItems.forEach(item => {
             const thumbItem = document.createElement('div');
             thumbItem.classList.add('thumbnail-item');
             thumbItem.dataset.id = item.id;
-            // The CSS will apply border, so style.width/height is for the content box.
-            thumbItem.style.width = `${thumbContentSize}px`;
-            thumbItem.style.height = `${thumbContentSize}px`;
+            thumbItem.style.width = `${thumbSize}px`;
+            thumbItem.style.height = `${thumbSize}px`;
             thumbItem.style.backgroundImage = `url(/api/media/thumbnail/${item.id})`;
             if (selectedMediaIds.has(item.id)) thumbItem.classList.add('selected');
             thumbItem.addEventListener('click', (event) => {
@@ -99,8 +85,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function toggleSelection(thumbElement, mediaId) { if(selectedMediaIds.has(mediaId)){selectedMediaIds.delete(mediaId);thumbElement.classList.remove('selected')}else{selectedMediaIds.add(mediaId);thumbElement.classList.add('selected')}console.log('Current selection IDs:',Array.from(selectedMediaIds)) }
-    function updatePaginationControls() { pageInfoSpan.textContent=`Page ${currentPage} of ${totalPages}`;prevPageBtn.disabled=currentPage<=1;nextPageBtn.disabled=currentPage>=totalPages }
+    function toggleSelection(thumbElement, mediaId) {
+        if (selectedMediaIds.has(mediaId)) {
+            selectedMediaIds.delete(mediaId);
+            thumbElement.classList.remove('selected');
+        } else {
+            selectedMediaIds.add(mediaId);
+            thumbElement.classList.add('selected');
+        }
+        console.log('Current selection IDs:', Array.from(selectedMediaIds));
+    }
+
+    function updatePaginationControls() {
+        pageInfoSpan.textContent = `Page ${currentPage} of ${totalPages}`;
+        prevPageBtn.disabled = currentPage <= 1;
+        nextPageBtn.disabled = currentPage >= totalPages;
+    }
 
     async function fetchOrgPaths() {
         try {
@@ -140,12 +140,55 @@ document.addEventListener('DOMContentLoaded', () => {
     sortBySelect.addEventListener('change', () => { currentSortBy = sortBySelect.value; console.log(`Sort by changed to: ${currentSortBy}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
     sortOrderSelect.addEventListener('change', () => { currentSortOrder = sortOrderSelect.value; console.log(`Sort order changed to: ${currentSortOrder}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
 
-    refreshBtn.addEventListener('click', async () => { console.log('Deep Refresh button clicked.');const o=refreshBtn.textContent;refreshBtn.textContent='Scanning Libraries...';refreshBtn.disabled=true;let s=!1;try{const r=await fetch('/api/scan/trigger',{method:'POST'});const t=await r.json().catch(()=>({error:"Failed to parse response JSON."}));if(!r.ok){console.error('Error triggering scan:',t.error||r.statusText,t.details);alert(`Error triggering library scan: ${t.error||r.statusText}`);s=!0}else{console.log('Library scan triggered successfully via API.',t.message);alert(t.message||'Library scan complete. Refreshing view.')}}catch(e){console.error('Network error or other issue triggering scan:',e);alert(`Failed to trigger library scan: ${e.message}. Check network or server console.`);s=!0}refreshBtn.textContent=o;refreshBtn.disabled=!1;if(!s){console.log('Scan successful or non-blocking error occurred, proceeding to refresh view data.');clearSelectionsAndUndoHistory();fetchMedia(1,currentSortBy,currentSortOrder);fetchOrgPaths();fetchGlobalTags()}else{console.log('Scan failed or error occurred, view refresh aborted.')}});
+    // Updated Refresh Button Logic
+    refreshBtn.addEventListener('click', async () => {
+        console.log('Deep Refresh button clicked.');
+        const originalButtonText = refreshBtn.textContent;
+        refreshBtn.textContent = 'Scanning Libraries...';
+        refreshBtn.disabled = true;
+        let scanErrorOccurred = false; // Renamed variable to avoid conflict
+
+        try {
+            const response = await fetch('/api/scan/trigger', { method: 'POST' });
+            // Try to parse JSON regardless of ok status for error details from API
+            const result = await response.json().catch(() => ({ error: "Failed to parse response JSON."}));
+
+            if (!response.ok) {
+                console.error('Error triggering scan:', result.error || response.statusText, result.details);
+                alert(`Error triggering library scan: ${result.error || response.statusText}`);
+                scanErrorOccurred = true;
+            } else {
+                console.log('Library scan triggered successfully via API.', result.message);
+                alert(result.message || 'Library scan complete. Refreshing view.'); // Simple feedback
+            }
+        } catch (error) { // Catches network errors or if await response.json() fails before .catch()
+            console.error('Network error or other issue triggering scan:', error);
+            alert(`Failed to trigger library scan: ${error.message}. Check network or server console.`);
+            scanErrorOccurred = true;
+        }
+
+        refreshBtn.textContent = originalButtonText;
+        refreshBtn.disabled = false;
+
+        if (!scanErrorOccurred) {
+            console.log('Scan successful or non-blocking error occurred, proceeding to refresh view data.');
+            clearSelectionsAndUndoHistory();
+            fetchMedia(1, currentSortBy, currentSortOrder); // Fetch from page 1 to reflect changes
+            fetchOrgPaths();
+            fetchGlobalTags();
+        } else {
+            console.log('Scan failed or error occurred, view refresh aborted.');
+        }
+    });
 
     prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { console.log('Previous page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1); }});
     nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) { console.log('Next page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1); }});
 
-    function clearSelectionsAndUndoHistory() { selectedMediaIds.clear();console.log("FRONTEND: Selections and undo history placeholder cleared.");if(document.readyState==='complete'||document.readyState==='interactive')renderPhotoWall(currentMediaItems); }
+    function clearSelectionsAndUndoHistory() {
+        selectedMediaIds.clear();
+        console.log("FRONTEND: Selections and undo history placeholder cleared.");
+        if (document.readyState === 'complete' || document.readyState === 'interactive') renderPhotoWall(currentMediaItems);
+    }
 
     const allModals = document.querySelectorAll('.modal');
     const closeButtons = document.querySelectorAll('.close-modal-btn');
