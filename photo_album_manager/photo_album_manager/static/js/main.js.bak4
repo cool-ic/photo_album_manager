@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded. Initializing application features. Debug prints enabled.');
+    console.log('DOM fully loaded. Initializing application features.');
 
     // Cache DOM elements
     const photoWall = document.getElementById('photo-wall');
@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortOrderSelect = document.getElementById('sort-order');
     const refreshBtn = document.getElementById('refresh-btn');
 
+    // Filter Modal Elements
     const filterConfigBtn = document.getElementById('filter-config-btn');
     const filterConfigModal = document.getElementById('filter-config-modal');
     const filterFunctionInput = document.getElementById('filter-function-input');
@@ -21,12 +22,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearFilterBtn = document.getElementById('clear-filter-btn');
     const filterStatusDiv = document.getElementById('filter-status');
 
+    // Image Viewer Modal Elements
     const imageViewerModal = document.getElementById('image-viewer-modal');
     const fullImage = document.getElementById('full-image');
     const modalCaption = document.querySelector('.modal-caption');
     const modalPrev = document.querySelector('.modal-prev');
     const modalNext = document.querySelector('.modal-next');
 
+    // Application State
     let currentPage = 1;
     let totalPages = 1;
     let photosPerRow = parseInt(sizeInput.value) || 5;
@@ -36,23 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMediaItems = [];
     let isXKeyPressed = false;
 
+    // --- Key press listeners for 'X' key ---
     document.addEventListener('keydown', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = true; });
     document.addEventListener('keyup', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = false; });
 
+    // --- Core Data Fetching and Rendering ---
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        const calculatedPerPage = photosPerRow * 4;
-        const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
-        console.log(`Fetching media from: ${apiUrl}`);
         try {
-            const response = await fetch(apiUrl);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}, message: ${await response.text()}`);
+            const calculatedPerPage = photosPerRow * 4;
+            const response = await fetch(`/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const data = await response.json();
-            console.log('Received media data:', {
-                currentPage: data.current_page,
-                totalPages: data.total_pages,
-                totalItems: data.total_items,
-                itemsInPage: data.media.length
-            });
             currentMediaItems = data.media;
             renderPhotoWall(currentMediaItems);
             currentPage = data.current_page;
@@ -60,12 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePaginationControls();
         } catch (error) {
             console.error('Error fetching media:', error);
-            photoWall.innerHTML = `<p>Error loading media: ${error.message}. Please try again.</p>`;
+            photoWall.innerHTML = '<p>Error loading media. Please try again.</p>';
         }
     }
 
     function renderPhotoWall(mediaItems) {
-        console.log(`Rendering photo wall with ${mediaItems ? mediaItems.length : 0} items.`);
         photoWall.innerHTML = '';
         if (!mediaItems || mediaItems.length === 0) {
             photoWall.innerHTML = '<p>No media found matching your criteria.</p>';
@@ -73,8 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const wallWidth = photoWall.clientWidth;
         const gap = 10;
-        const thumbSize = Math.max(50, Math.floor((wallWidth - (photosPerRow - 1) * gap) / photosPerRow) - 4);
-        console.log(`Calculated thumbnail size: ${thumbSize}px for ${photosPerRow} photos per row.`);
+        const thumbSize = Math.max(50, Math.floor((wallWidth - (photosPerRow - 1) * gap) / photosPerRow) - 4); // Ensure min size
 
         mediaItems.forEach(item => {
             const thumbItem = document.createElement('div');
@@ -100,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedMediaIds.add(mediaId);
             thumbElement.classList.add('selected');
         }
-        console.log('Current selection IDs:', Array.from(selectedMediaIds));
     }
 
     function updatePaginationControls() {
@@ -109,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         nextPageBtn.disabled = currentPage >= totalPages;
     }
 
+    // --- Info Panel Data ---
     async function fetchOrgPaths() {
         try {
             const response = await fetch('/api/org_paths');
@@ -126,41 +121,27 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) { console.error('Error fetching global tags:', error); }
     }
 
+    // --- Event Listeners for Menu Controls ---
     sizeInput.addEventListener('change', () => {
         const newSize = parseInt(sizeInput.value);
-        if (newSize > 0) {
-            console.log(`Size changed to ${newSize} photos per row.`);
-            photosPerRow = newSize; clearSelectionsAndUndoHistory(); fetchMedia(1);
-        } else { sizeInput.value = photosPerRow; }
+        if (newSize > 0) { photosPerRow = newSize; clearSelectionsAndUndoHistory(); fetchMedia(1); }
+        else { sizeInput.value = photosPerRow; }
     });
-    sortBySelect.addEventListener('change', () => {
-        currentSortBy = sortBySelect.value;
-        console.log(`Sort by changed to: ${currentSortBy}`);
-        clearSelectionsAndUndoHistory(); fetchMedia(1);
-    });
-    sortOrderSelect.addEventListener('change', () => {
-        currentSortOrder = sortOrderSelect.value;
-        console.log(`Sort order changed to: ${currentSortOrder}`);
-        clearSelectionsAndUndoHistory(); fetchMedia(1);
-    });
-    refreshBtn.addEventListener('click', () => {
-        console.log('Refresh button clicked.');
-        clearSelectionsAndUndoHistory(); fetchMedia(currentPage); fetchOrgPaths(); fetchGlobalTags();
-    });
+    sortBySelect.addEventListener('change', () => { currentSortBy = sortBySelect.value; clearSelectionsAndUndoHistory(); fetchMedia(1); });
+    sortOrderSelect.addEventListener('change', () => { currentSortOrder = sortOrderSelect.value; clearSelectionsAndUndoHistory(); fetchMedia(1); });
+    refreshBtn.addEventListener('click', () => { clearSelectionsAndUndoHistory(); fetchMedia(currentPage); fetchOrgPaths(); fetchGlobalTags(); });
 
-    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) {
-        console.log('Previous page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1);
-    }});
-    nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) {
-        console.log('Next page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1);
-    }});
+    // --- Pagination Event Listeners ---
+    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1); }});
+    nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) { clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1); }});
 
     function clearSelectionsAndUndoHistory() {
         selectedMediaIds.clear();
-        console.log("FRONTEND: Selections and undo history placeholder cleared.");
+        console.log("Selections and undo history cleared.");
         if (document.readyState === 'complete' || document.readyState === 'interactive') renderPhotoWall(currentMediaItems);
     }
 
+    // --- Modal Handling ---
     const allModals = document.querySelectorAll('.modal');
     const closeButtons = document.querySelectorAll('.close-modal-btn');
     function openModal(modalId) { const modal = document.getElementById(modalId); if(modal) modal.style.display = 'block'; }
@@ -168,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeButtons.forEach(button => { button.onclick = function() { closeModal(button.closest('.modal')); }});
     window.onclick = function(event) { allModals.forEach(modal => { if (event.target == modal) closeModal(modal); }); }
 
+    // --- Image Viewer Logic ---
     let currentViewIndex = -1;
     function openImageViewer(mediaId) {
         const itemIndex = currentMediaItems.findIndex(m => m.id === mediaId);
@@ -194,15 +176,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Advanced Filter Logic ---
     filterConfigBtn.onclick = () => {
-        console.log('Filter config modal opened.');
-        filterStatusDiv.textContent = ''; // Clear previous status
+        // Optionally, load current filter from server/local var into textarea here
+        // For now, just ensure status is clear and modal opens
+        filterStatusDiv.textContent = '';
         filterStatusDiv.style.color = ''; // Reset color
         openModal('filter-config-modal');
     };
+
     applyFilterBtn.addEventListener('click', async () => {
         const filterCode = filterFunctionInput.value;
-        console.log('Applying filter with code:', filterCode.substring(0,100) + '...');
         try {
             const response = await fetch('/api/media/filter_config', {
                 method: 'POST',
@@ -213,45 +197,47 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 filterStatusDiv.textContent = 'Filter applied successfully!';
                 filterStatusDiv.style.color = 'green';
-                console.log('Filter applied successfully via API.');
                 closeModal(filterConfigModal);
-                clearSelectionsAndUndoHistory(); fetchMedia(1);
+                clearSelectionsAndUndoHistory();
+                fetchMedia(1); // Re-fetch media from page 1 with new filter
             } else {
                 filterStatusDiv.textContent = `Error: ${result.error || 'Could not apply filter.'}`;
                 filterStatusDiv.style.color = 'red';
-                console.error('API error applying filter:', result.error);
             }
         } catch (error) {
-            console.error('Network error applying filter:', error);
+            console.error('Error applying filter:', error);
             filterStatusDiv.textContent = 'Network error applying filter.';
             filterStatusDiv.style.color = 'red';
         }
     });
+
     clearFilterBtn.addEventListener('click', async () => {
-        console.log('Clearing filter.');
         try {
             const response = await fetch('/api/media/filter_config', { method: 'DELETE' });
             const result = await response.json();
             if (response.ok) {
-                filterFunctionInput.value = '';
+                filterFunctionInput.value = ''; // Clear the textarea
                 filterStatusDiv.textContent = 'Filter cleared successfully!';
                 filterStatusDiv.style.color = 'green';
-                console.log('Filter cleared successfully via API.');
-                clearSelectionsAndUndoHistory(); fetchMedia(1);
+                // Optionally close modal or wait for user to see message
+                // closeModal(filterConfigModal);
+                clearSelectionsAndUndoHistory();
+                fetchMedia(1); // Re-fetch media from page 1
             } else {
                 filterStatusDiv.textContent = `Error: ${result.error || 'Could not clear filter.'}`;
                 filterStatusDiv.style.color = 'red';
-                console.error('API error clearing filter:', result.error);
             }
         } catch (error) {
-            console.error('Network error clearing filter:', error);
+            console.error('Error clearing filter:', error);
             filterStatusDiv.textContent = 'Network error clearing filter.';
             filterStatusDiv.style.color = 'red';
         }
     });
 
+    // --- Other Modal Triggers ---
     document.getElementById('tag-management-btn').onclick = () => openModal('tag-management-modal');
 
+    // --- Initial Data Load ---
     fetchMedia(currentPage, currentSortBy, currentSortOrder);
     fetchOrgPaths();
     fetchGlobalTags();

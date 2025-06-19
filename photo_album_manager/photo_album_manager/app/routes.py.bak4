@@ -4,17 +4,6 @@ from app.tag_manager import get_all_global_tags
 from app.image_utils import generate_thumbnail, get_thumbnail_path
 from app.utils import execute_user_filter_function
 import os
-import logging
-
-# Use a fixed name for the logger
-routes_logger = logging.getLogger('photo_album_manager.routes')
-if not routes_logger.handlers:
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - ROUTES - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    routes_logger.addHandler(handler)
-    routes_logger.setLevel(logging.DEBUG) # Or logging.INFO for less verbosity
-    routes_logger.propagate = False # Avoid duplicate logs if root logger also has stream handler
 
 @current_app.route('/')
 def index_page():
@@ -25,23 +14,19 @@ def media_filter_config():
     if request.method == 'POST':
         data = request.get_json()
         if not data or 'filter_code' not in data:
-            routes_logger.warning("POST /api/media/filter_config: Missing 'filter_code' in request body.")
             return jsonify({'error': 'Missing filter_code in request body'}), 400
 
         filter_code = data['filter_code']
+        # Basic validation: check if 'def api_select(media):' is in the code.
         if 'def api_select(media):' not in filter_code:
-            routes_logger.warning(f"POST /api/media/filter_config: 'def api_select(media):' not found in submitted code: {filter_code[:150]}...")
-            return jsonify({'error': 'Filter code must contain "def api_select(media):"'}), 400
+             return jsonify({'error': 'Filter code must contain "def api_select(media):"'}), 400
 
         session['media_filter_code'] = filter_code
-        routes_logger.info(f"Saved new media_filter_code to session. Starts with: {filter_code[:100]}...")
+        print(f"Filter config saved to session: {filter_code[:100]}...")
         return jsonify({'message': 'Filter configuration saved.'}), 200
     elif request.method == 'DELETE':
-        removed_filter = session.pop('media_filter_code', None)
-        if removed_filter:
-            routes_logger.info("Cleared media_filter_code from session.")
-        else:
-            routes_logger.info("Attempted to clear media_filter_code from session, but none was set.")
+        session.pop('media_filter_code', None)
+        print("Filter config cleared from session.")
         return jsonify({'message': 'Filter configuration cleared.'}), 200
 
 @current_app.route('/api/media', methods=['GET'])
@@ -50,7 +35,6 @@ def list_media():
     per_page_arg = request.args.get('per_page', 20, type=int)
     sort_by = request.args.get('sort_by', 'capture_time', type=str)
     sort_order = request.args.get('sort_order', 'desc', type=str)
-    routes_logger.debug(f"GET /api/media: page={page}, per_page={per_page_arg}, sort_by='{sort_by}', sort_order='{sort_order}'")
 
     query = Media.query
     order_column_map = {
@@ -63,56 +47,55 @@ def list_media():
     order_column = order_column_map.get(sort_by, Media.capture_time)
     query = query.order_by(order_column.asc() if sort_order.lower() == 'asc' else order_column.desc())
 
+    all_items_from_db_query = query.all()
+    filtered_items_after_py_filter = []
     user_filter_code = session.get('media_filter_code')
-    all_items_from_db = query.all() # Fetches all items matching the basic SQL query + sort
-    filtered_items_after_py = []
 
     if user_filter_code:
-        routes_logger.info(f"Applying user filter from session. Code starts with: {user_filter_code[:100]}...")
-        routes_logger.debug(f"Number of items from DB query before Python filter: {len(all_items_from_db)}")
-        for item in all_items_from_db:
+        print(f"Applying user filter (first 100 chars): {user_filter_code[:100]}...")
+        for item in all_items_from_db_query:
             media_dict_for_filter = {
                 'tag': [tag.name for tag in item.tags],
                 'org_PATH': item.org_path,
                 'filename': item.filename,
-                'filepath': item.filepath, # Added filepath
-                'capture_time': item.capture_time.isoformat() if item.capture_time else None, # ISO format for consistency
-                'modification_time': item.modification_time.isoformat() if item.modification_time else None, # ISO format
+                'capture_time': item.capture_time,
+                'modification_time': item.modification_time,
                 'filesize': item.filesize,
                 'media_type': item.media_type,
-                'id': item.id # Added ID
             }
             if execute_user_filter_function(media_dict_for_filter, user_filter_code):
-                filtered_items_after_py.append(item)
-        routes_logger.info(f"Number of items after Python filter: {len(filtered_items_after_py)}")
+                filtered_items_after_py_filter.append(item)
+        print(f"Python filter applied. {len(filtered_items_after_py_filter)} items matched out of {len(all_items_from_db_query)} from DB query.")
     else:
-        routes_logger.debug("No user filter in session. Using all items from DB query.")
-        filtered_items_after_py = all_items_from_db
+        filtered_items_after_py_filter = all_items_from_db_query
 
-    total_items = len(filtered_items_after_py)
+    total_items = len(filtered_items_after_py_filter)
     start_index = (page - 1) * per_page_arg
     end_index = start_index + per_page_arg
-    paginated_slice = filtered_items_after_py[start_index:end_index]
+    paginated_slice = filtered_items_after_py_filter[start_index:end_index]
 
     total_pages = (total_items + per_page_arg - 1) // per_page_arg if per_page_arg > 0 else 0
-    if total_items == 0: total_pages = 0 # Correct handling for no items
+    if total_items == 0: total_pages = 0
 
-    routes_logger.debug(f"Pagination: total_items={total_items}, page={page}, per_page={per_page_arg}, returning {len(paginated_slice)} items for this page.")
-
-    media_list_response = [
-        {
-            'id': item_in_slice.id, 'filepath': item_in_slice.filepath, 'filename': item_in_slice.filename,
+    media_list_response = []
+    for item_in_slice in paginated_slice:
+        media_list_response.append({
+            'id': item_in_slice.id,
+            'filepath': item_in_slice.filepath,
+            'filename': item_in_slice.filename,
             'org_path': item_in_slice.org_path,
             'capture_time': item_in_slice.capture_time.isoformat() if item_in_slice.capture_time else None,
             'modification_time': item_in_slice.modification_time.isoformat() if item_in_slice.modification_time else None,
-            'filesize': item_in_slice.filesize, 'media_type': item_in_slice.media_type,
+            'filesize': item_in_slice.filesize,
+            'media_type': item_in_slice.media_type,
             'tags': [tag.name for tag in item_in_slice.tags]
-        } for item_in_slice in paginated_slice
-    ]
+        })
 
     return jsonify({
-        'media': media_list_response, 'total_pages': total_pages,
-        'current_page': page, 'total_items': total_items
+        'media': media_list_response,
+        'total_pages': total_pages,
+        'current_page': page,
+        'total_items': total_items
     })
 
 @current_app.route('/api/tags', methods=['GET'])
@@ -128,7 +111,11 @@ def list_org_paths():
 @current_app.route('/api/media/file/<int:media_id>', methods=['GET'])
 def get_media_file(media_id):
     media_item = Media.query.get_or_404(media_id)
-    is_safe_path = any(os.path.abspath(media_item.filepath).startswith(os.path.abspath(org_path_config)) for org_path_config in current_app.config.get('ORG_PATHS', []))
+    is_safe_path = False
+    abs_filepath = os.path.abspath(media_item.filepath)
+    for org_path_config in current_app.config.get('ORG_PATHS', []):
+        if abs_filepath.startswith(os.path.abspath(org_path_config)):
+            is_safe_path = True; break
     if not is_safe_path: abort(403)
     if not os.path.exists(media_item.filepath): abort(404)
     return send_from_directory(os.path.dirname(media_item.filepath), os.path.basename(media_item.filepath))
@@ -141,10 +128,4 @@ def get_media_thumbnail(media_id):
     if not os.path.exists(thumb_full_path):
         generated_path = generate_thumbnail(media_item)
         if not generated_path: return jsonify({'message': 'Thumbnail generation failed.'}), 500
-    # Ensure the thumbnail directory is within the expected base thumbnail directory for security.
-    # BASE_DIR should be consistently available from app.config if config.py loaded it.
-    expected_thumb_base = os.path.join(current_app.config.get('BASE_DIR', ''), 'data', 'thumbnails')
-    if not os.path.abspath(thumb_dir).startswith(os.path.abspath(expected_thumb_base)):
-        routes_logger.error(f"Thumbnail path {thumb_dir} is outside expected base {expected_thumb_base}.")
-        abort(403) # Forbidden
     return send_from_directory(thumb_dir, thumb_filename)
