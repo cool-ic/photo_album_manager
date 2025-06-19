@@ -24,8 +24,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # The application will NOT create these custom paths for you.
 ORG_PATHS = [
     # Default sample path (relative to this project's location for easy demo)
-    os.path.join(BASE_DIR, 'sample_media', 'library1'),
-    os.path.join(BASE_DIR, 'sample_media', 'library2')
+    '/mnt/c/Users/root/Desktop/请柬'
 ]
 
 # --- User Configuration: Archive Path ---
@@ -33,7 +32,7 @@ ORG_PATHS = [
 # This feature is planned but not fully implemented in the UI yet.
 #
 # **NOTE:** You MUST create this directory on your filesystem if it does not already exist.
-ARCHIVE_PATH = os.path.join(BASE_DIR, 'sample_media', 'archive') # Default sample path
+ARCHIVE_PATH = '/mnt/c/Users/root/Desktop/ac' # Default sample path
 
 
 # --- Supported File Extensions (lowercase) ---
