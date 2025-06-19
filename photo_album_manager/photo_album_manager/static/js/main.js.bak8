@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM fully loaded. Initializing application features. Using CSS Grid and dynamic rows.');
+    console.log('DOM fully loaded. Initializing application features. Using CSS Grid for photo wall.');
 
     const photoWall = document.getElementById('photo-wall');
     const prevPageBtn = document.getElementById('prev-page');
@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const sortOrderSelect = document.getElementById('sort-order');
     const refreshBtn = document.getElementById('refresh-btn');
 
-    // Filter Modal Elements (assuming they exist from previous steps)
     const filterConfigBtn = document.getElementById('filter-config-btn');
     const filterConfigModal = document.getElementById('filter-config-modal');
     const filterFunctionInput = document.getElementById('filter-function-input');
@@ -21,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearFilterBtn = document.getElementById('clear-filter-btn');
     const filterStatusDiv = document.getElementById('filter-status');
 
-    // Image Viewer Modal Elements (assuming they exist)
     const imageViewerModal = document.getElementById('image-viewer-modal');
     const fullImage = document.getElementById('full-image');
     const modalCaption = document.querySelector('.modal-caption');
@@ -31,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let totalPages = 1;
     let photosPerRow = parseInt(sizeInput.value) || 5;
+    // Set initial CSS custom property for photos per row
     photoWall.style.setProperty('--photos-per-row', photosPerRow);
 
     let currentSortBy = sortBySelect.value;
@@ -38,51 +37,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedMediaIds = new Set();
     let currentMediaItems = [];
     let isXKeyPressed = false;
-    let resizeTimeout;
-    let lastCalculatedPerPage = 0; // To track if perPage needs update on resize
 
     document.addEventListener('keydown', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = true; });
     document.addEventListener('keyup', (event) => { if (event.key === 'x' || event.key === 'X') isXKeyPressed = false; });
 
-    function getCalculatedPerPage() {
-        const currentPhotosPerRowVal = parseInt(photoWall.style.getPropertyValue('--photos-per-row')) || photosPerRow;
-        const wallWidth = photoWall.clientWidth;
-        const wallHeight = photoWall.clientHeight;
-        const gap = 10; // CSS gap value
-        const borderHeightPerItem = 4; // 2px top + 2px bottom border
-
-        if (wallWidth === 0 || wallHeight === 0 || currentPhotosPerRowVal === 0) {
-            console.warn("Photo wall dimensions or photosPerRow is zero, using default perPage calculation.");
-            return currentPhotosPerRowVal * 4; // Default to 4 rows if dimensions are zero or invalid
-        }
-
-        // Calculate width of a single column based on 1fr distribution
-        // This width includes the item's content area + its own borders.
-        const columnWidth = (wallWidth - (currentPhotosPerRowVal - 1) * gap) / currentPhotosPerRowVal;
-
-        // Since aspect-ratio is 1/1, thumbnail item's total height (content + border) is approx columnWidth.
-        const thumbTotalHeight = columnWidth;
-
-        // Height one row of items (including its bottom gap) takes up
-        const singleRowWithGapHeight = thumbTotalHeight + gap;
-
-        if (singleRowWithGapHeight <= 0) {
-            console.warn("Calculated single row height is zero or negative, using default perPage.");
-            return currentPhotosPerRowVal * 4;
-        }
-
-        // Calculate how many full rows can fit in the visible height of the photo wall
-        const numRows = Math.max(1, Math.floor(wallHeight / singleRowWithGapHeight));
-        const calculatedPerPage = currentPhotosPerRowVal * numRows;
-
-        console.log(`Dynamic perPage: wallH=${wallHeight}, photosPerRow=${currentPhotosPerRowVal}, colW/thumbTotalH=${thumbTotalHeight.toFixed(1)}, rowWithGapH=${singleRowWithGapHeight.toFixed(1)}, numRows=${numRows}, perPage=${calculatedPerPage}`);
-        return Math.max(currentPhotosPerRowVal, calculatedPerPage); // Ensure at least one row is fetched
-    }
-
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
-        const calculatedPerPage = getCalculatedPerPage();
-        lastCalculatedPerPage = calculatedPerPage; // Store for resize check
-
+        // The number of items to fetch per page can be independent of photosPerRow with CSS Grid,
+        // but fetching more items (e.g., a few rows worth) at once can be efficient.
+        // Use the current value of the CSS custom property for calculation.
+        const currentPhotosPerRowSetting = parseInt(photoWall.style.getPropertyValue('--photos-per-row')) || photosPerRow;
+        const calculatedPerPage = currentPhotosPerRowSetting * 4;
         const apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
         console.log(`Fetching media from: ${apiUrl}`);
         try {
@@ -108,11 +72,15 @@ document.addEventListener('DOMContentLoaded', () => {
             photoWall.innerHTML = '<p>No media found matching your criteria.</p>';
             return;
         }
+        // Thumbnail size is now controlled by CSS Grid (1fr columns and aspect-ratio).
+        // No need to calculate thumbSize in JS.
         console.log(`Photo wall using CSS Grid with '--photos-per-row': ${photoWall.style.getPropertyValue('--photos-per-row')}`);
+
         mediaItems.forEach(item => {
             const thumbItem = document.createElement('div');
             thumbItem.classList.add('thumbnail-item');
             thumbItem.dataset.id = item.id;
+            // Width and height are now handled by CSS (width: 100% of grid cell, aspect-ratio: 1/1)
             thumbItem.style.backgroundImage = `url(/api/media/thumbnail/${item.id})`;
             if (selectedMediaIds.has(item.id)) thumbItem.classList.add('selected');
             thumbItem.addEventListener('click', (event) => {
@@ -127,39 +95,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const newSize = parseInt(sizeInput.value);
         if (newSize > 0) {
             console.log(`Size changed to ${newSize} photos per row.`);
-            photosPerRow = newSize;
-            photoWall.style.setProperty('--photos-per-row', photosPerRow);
+            photosPerRow = newSize; // Update the JS variable (used by fetchMedia for per_page calculation)
+            photoWall.style.setProperty('--photos-per-row', photosPerRow); // Update CSS custom property for grid layout
             clearSelectionsAndUndoHistory();
+            // Fetch new data as calculatedPerPage depends on photosPerRow
             fetchMedia(1);
         } else {
-            sizeInput.value = photosPerRow;
+            sizeInput.value = photosPerRow; // Reset to old value if input is invalid
         }
     });
 
-    // Debounced resize handler
-    window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => {
-            console.log('Window resized, recalculating layout.');
-            const newCalculatedPerPage = getCalculatedPerPage();
-            if (newCalculatedPerPage !== lastCalculatedPerPage) {
-                console.log(`Calculated perPage changed from ${lastCalculatedPerPage} to ${newCalculatedPerPage}. Re-fetching.`);
-                clearSelectionsAndUndoHistory();
-                fetchMedia(1);
-            } else {
-                console.log(`Calculated perPage (${newCalculatedPerPage}) same as last (${lastCalculatedPerPage}). No re-fetch needed from resize.`);
-            }
-        }, 300); // 300ms debounce
-    });
-
-    // --- Minified Unchanged functions for brevity ---
+    // --- Unchanged functions (minified in prompt, kept as single lines for tool input consistency) ---
     function toggleSelection(thumbElement, mediaId) { if(selectedMediaIds.has(mediaId)){selectedMediaIds.delete(mediaId);thumbElement.classList.remove('selected')}else{selectedMediaIds.add(mediaId);thumbElement.classList.add('selected')}console.log('Current selection IDs:',Array.from(selectedMediaIds)) }
     function updatePaginationControls() { pageInfoSpan.textContent=`Page ${currentPage} of ${totalPages}`;prevPageBtn.disabled=currentPage<=1;nextPageBtn.disabled=currentPage>=totalPages }
     async function fetchOrgPaths() { try {const r=await fetch('/api/org_paths');const d=await r.json();orgPathsList.innerHTML='';d.forEach(p=>{const l=document.createElement('li');l.textContent=p;orgPathsList.appendChild(l)})}catch(e){console.error('Error fetching org paths:',e)} }
     async function fetchGlobalTags() { try {const r=await fetch('/api/tags');const d=await r.json();globalTagsList.innerHTML='';d.forEach(t=>{const l=document.createElement('li');l.textContent=t.name;l.dataset.tagId=t.id;globalTagsList.appendChild(l)})}catch(e){console.error('Error fetching global tags:',e)} }
     sortBySelect.addEventListener('change', () => { currentSortBy = sortBySelect.value; console.log(`Sort by changed to: ${currentSortBy}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
     sortOrderSelect.addEventListener('change', () => { currentSortOrder = sortOrderSelect.value; console.log(`Sort order changed to: ${currentSortOrder}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
-    refreshBtn.addEventListener('click', async () => { console.log('Deep Refresh button clicked.');const o=refreshBtn.textContent;refreshBtn.textContent='Scanning Libraries...';refreshBtn.disabled=true;let s=false;try{const r=await fetch('/api/scan/trigger',{method:'POST'});const t=await r.json().catch(()=>({error:"Failed to parse response JSON."}));if(!r.ok){console.error('Error triggering scan:',t.error,t.details);alert(`Error triggering library scan: ${t.error||'Unknown error'}`);s=true}else{console.log('Library scan triggered successfully via API.');alert('Library scan complete. Refreshing view.')}}catch(e){console.error('Network error or other issue triggering scan:',e);alert('Failed to trigger library scan. Check network or server console.');s=true}refreshBtn.textContent=o;refreshBtn.disabled=false;if(!s){console.log('Scan successful or error handled, proceeding to refresh view data.');clearSelectionsAndUndoHistory();fetchMedia(1,currentSortBy,currentSortOrder);fetchOrgPaths();fetchGlobalTags()}});
+    refreshBtn.addEventListener('click', async () => { console.log('Deep Refresh button clicked.');const o=refreshBtn.textContent;refreshBtn.textContent='Scanning Libraries...';refreshBtn.disabled=true;let s=!1;try{const r=await fetch('/api/scan/trigger',{method:'POST'});const t=await r.json().catch(()=>({error:"Failed to parse response JSON."}));if(!r.ok){console.error('Error triggering scan:',t.error||r.statusText,t.details);alert(`Error triggering library scan: ${t.error||r.statusText}`);s=!0}else{console.log('Library scan triggered successfully via API.',t.message);alert(t.message||'Library scan complete. Refreshing view.')}}catch(e){console.error('Network error or other issue triggering scan:',e);alert(`Failed to trigger library scan: ${e.message}. Check network or server console.`);s=!0}refreshBtn.textContent=o;refreshBtn.disabled=!1;if(!s){console.log('Scan successful or non-blocking error occurred, proceeding to refresh view data.');clearSelectionsAndUndoHistory();fetchMedia(1,currentSortBy,currentSortOrder);fetchOrgPaths();fetchGlobalTags()}else{console.log('Scan failed or error occurred, view refresh aborted.')}});
     prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { console.log('Previous page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1); }});
     nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) { console.log('Next page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1); }});
     function clearSelectionsAndUndoHistory() { selectedMediaIds.clear();console.log("FRONTEND: Selections and undo history placeholder cleared.");if(document.readyState==='complete'||document.readyState==='interactive')renderPhotoWall(currentMediaItems); }
