@@ -23,55 +23,11 @@ body, html {
 .menu-bar h2 { text-align: center; }
 .menu-item { margin-bottom: 15px; }
 .menu-item label { display: block; margin-bottom: 5px; }
-
-/* Unified styling for all form elements and buttons in the menu bar */
-.menu-item input[type='number'],
-.menu-item select,
-.menu-item button {
-    width: 100%; /* Take full width of menu-item content box */
-    padding: 8px;
-    margin-top: 5px; /* Consistent top margin */
-    margin-bottom: 5px; /* Add some bottom margin too */
-    box-sizing: border-box;
-    border: 1px solid #555;
-    background-color: #444;
-    color: white;
-    border-radius: 3px; /* Slightly rounded corners */
-}
-.menu-item button:hover {
-    background-color: #555;
-    cursor: pointer;
-}
-/* Ensure selects are not too different in height */
-.menu-item select {
-    height: auto; /* Or a fixed height if padding doesn't make them consistent with buttons */
-}
-
-
-/* Styling for pagination controls within the menu bar */
-/* The .menu-bar .pagination selector targets the div holding the pagination elements */
-.menu-bar .pagination {
-    /* The div.pagination is now inside a div.menu-item */
-    /* No specific styling needed for the .pagination div itself,
-       as its children are styled by the general rules above/below. */
-}
-
-/* Buttons within pagination are already styled by the general .menu-item button rule.
-   If specific overrides were needed (e.g., smaller buttons, side-by-side):
-.menu-bar .pagination button {
+.menu-item input[type='number'], .menu-item select, .menu-item button {
+    width: calc(100% - 10px);
     padding: 5px;
-    display: inline-block;
-    width: auto;
-}
-*/
-
-.menu-bar .pagination #page-info {
-    display: block;
-    text-align: center;
-    padding: 8px 0; /* Match button padding for vertical rhythm */
-    margin: 0; /* Remove default margins if span has them, rely on button margins */
-    font-size: 0.9em;
-    color: #ccc; /* Lighter color for info text */
+    margin-top: 5px;
+    box-sizing: border-box;
 }
 
 .content-area {
@@ -83,19 +39,20 @@ body, html {
 }
 
 .photo-wall {
-    display: grid;
+    display: grid; /* Changed from flex to grid */
+    /* Default to 5 columns, will be overridden by JS via CSS custom property */
     grid-template-columns: repeat(var(--photos-per-row, 5), minmax(0, 1fr));
     gap: 10px;
 }
 
 .photo-wall .thumbnail-item {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    background-color: #ccc;
+    width: 100%; /* Fill the grid cell width */
+    aspect-ratio: 1 / 1; /* Maintain a square shape */
+    background-color: #ccc; /* Placeholder color */
     background-size: cover;
     background-position: center;
     border: 2px solid transparent;
-    box-sizing: border-box;
+    box-sizing: border-box; /* Include border in width/height if padding were used */
     cursor: pointer;
 }
 
@@ -103,7 +60,7 @@ body, html {
     border-color: blue;
 }
 
-/* Old .pagination rule (for when it was at bottom of content-area) is removed */
+.pagination { text-align: center; padding: 20px 0; }
 
 .info-panel {
     width: 250px;

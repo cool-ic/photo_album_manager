@@ -25,16 +25,6 @@
                     <option value="asc">Ascending</option>
                 </select>
             </div>
-            <!-- Pagination Controls Moved Here -->
-            <div class="menu-item">
-                <label>Page Navigation:</label>
-                <div class="pagination">
-                    <button id="prev-page">Previous</button>
-                    <span id="page-info" style="display: block; text-align: center; margin: 5px 0;">Page 1 of 1</span>
-                    <button id="next-page">Next</button>
-                </div>
-            </div>
-            <!-- End Pagination Controls -->
             <div class="menu-item"><button id="delete-selected-btn">Delete Selected</button></div>
             <div class="menu-item"><button id="filter-config-btn">Filter Config</button></div>
             <div class="menu-item"><button id="tag-management-btn">Tag Management</button></div>
@@ -46,7 +36,11 @@
             <div id="photo-wall" class="photo-wall">
                 <!-- Thumbnails will be loaded here by JavaScript -->
             </div>
-            <!-- Pagination Controls Were Here -->
+            <div class="pagination">
+                <button id="prev-page">Previous</button>
+                <span id="page-info">Page 1 of 1</span>
+                <button id="next-page">Next</button>
+            </div>
         </main>
 
         <aside class="info-panel">
