@@ -25,6 +25,7 @@
                     <option value="asc">Ascending</option>
                 </select>
             </div>
+            <!-- Pagination Controls Moved Here -->
             <div class="menu-item">
                 <label>Page Navigation:</label>
                 <div class="pagination">
@@ -33,6 +34,7 @@
                     <button id="next-page">Next</button>
                 </div>
             </div>
+            <!-- End Pagination Controls -->
             <div class="menu-item"><button id="delete-selected-btn">Delete Selected</button></div>
             <div class="menu-item"><button id="filter-config-btn">Filter Config</button></div>
             <div class="menu-item"><button id="tag-management-btn">Tag Management</button></div>
@@ -41,16 +43,30 @@
         </aside>
 
         <main class="content-area">
-            <div id="photo-wall" class="photo-wall"></div>
+            <div id="photo-wall" class="photo-wall">
+                <!-- Thumbnails will be loaded here by JavaScript -->
+            </div>
+            <!-- Pagination Controls Were Here -->
         </main>
 
         <aside class="info-panel">
             <h2>Backend Info</h2>
-            <div class="info-section"><h3>Org Paths:</h3><ul id="org-paths-list"></ul></div>
-            <div class="info-section"><h3>Global Tags:</h3><ul id="global-tags-list"></ul></div>
+            <div class="info-section">
+                <h3>Org Paths:</h3>
+                <ul id="org-paths-list">
+                    <!-- Org paths will be loaded here -->
+                </ul>
+            </div>
+            <div class="info-section">
+                <h3>Global Tags:</h3>
+                <ul id="global-tags-list">
+                    <!-- Global tags will be loaded here -->
+                </ul>
+            </div>
         </aside>
     </div>
 
+    <!-- Modal for original image view -->
     <div id="image-viewer-modal" class="modal">
         <span class="close-modal-btn">&times;</span>
         <img class="modal-content" id="full-image">
@@ -59,6 +75,7 @@
         <a class="modal-next">&#10095;</a>
     </div>
 
+    <!-- Modal for filter config input -->
     <div id="filter-config-modal" class="modal">
         <div class="modal-dialog-content">
             <span class="close-modal-btn">&times;</span>
@@ -71,15 +88,15 @@
         </div>
     </div>
 
+    <!-- Modal for tag management -->
     <div id="tag-management-modal" class="modal">
         <div class="modal-dialog-content">
             <span class="close-modal-btn">&times;</span>
             <h3>Tag Management</h3>
-            <input type="text" id="new-tag-input" placeholder="New tag name" style="width: calc(100% - 100px); margin-right: 5px;">
-            <button id="add-new-tag-btn" style="width: 90px;">Add Tag</button>
-            <div id="tag-management-status" style="margin-top:10px; font-size:0.9em; min-height: 1.2em;"></div>
+            <input type="text" id="new-tag-input" placeholder="New tag name">
+            <button id="add-new-tag-btn">Add Tag</button>
             <h4>Existing Tags:</h4>
-            <ul id="manage-tags-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 5px;">
+            <ul id="manage-tags-list">
                 <!-- Tags with delete buttons -->
             </ul>
         </div>
