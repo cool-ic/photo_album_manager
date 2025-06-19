@@ -10,7 +10,8 @@
     <div class="container">
         <aside class="menu-bar">
             <h2>Menu</h2>
-            <div class="menu-item"><label for="size-input">Photos per Row:</label><input type="number" id="size-input" value="5" min="1"></div>
+            <!-- Menu items will go here -->
+            <div class="menu-item"><label for="size-input">Photos per Row:</label><input type="number" id="size-input" value="5"></div>
             <div class="menu-item"><button id="refresh-btn">Refresh</button></div>
             <div class="menu-item">
                 <label for="sort-by">Sort By:</label>
@@ -74,11 +75,8 @@
         <div class="modal-dialog-content">
             <span class="close-modal-btn">&times;</span>
             <h3>Advanced Filter Configuration</h3>
-            <p>Define an <code>api_select(media)</code> function. 'media' has <code>.tag</code> (list) and <code>.org_PATH</code> (str).</p>
-            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # Example: return 'animal' in media.tag\n    return True"></textarea>
+            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # 'media' has .tag (list) and .org_PATH (str)\n    # return True to include, False to exclude"></textarea>
             <button id="apply-filter-btn">Apply Filter</button>
-            <button id="clear-filter-btn" style="background-color: #ffc107; margin-left: 10px;">Clear Filter</button>
-            <div id="filter-status" style="margin-top:10px; font-size:0.9em;"></div>
         </div>
     </div>
 
