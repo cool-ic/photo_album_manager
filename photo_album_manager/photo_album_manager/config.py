@@ -97,3 +97,9 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 print(f"Config loaded. ORG_PATHS set to: {ORG_PATHS}")
 print(f"ARCHIVE_PATH set to: {ARCHIVE_PATH}")
 print(f"Database URI set to: {SQLALCHEMY_DATABASE_URI}")
+
+# --- Flask Session Configuration ---
+# IMPORTANT: This is a RANDOMLY GENERATED key for development/testing.
+# For production, REPLACE this with a strong, unique, and static secret value.
+# Keep this key confidential. It's used to sign session cookies.
+SECRET_KEY = 'cb74945de63c9bc727ebeef452a8d3f741149305e4c2483503b5c45aae0ac946'
