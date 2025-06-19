@@ -37,8 +37,7 @@
             <div class="menu-item"><button id="filter-config-btn">Filter Config</button></div>
             <div class="menu-item"><button id="tag-management-btn">Tag Management</button></div>
             <div class="menu-item"><button id="batch-tag-btn">Batch Tag Selected</button></div>
-            <!-- Removed Undo Button -->
-            <!-- <div class="menu-item"><button id="undo-btn">Undo</button></div> -->
+            <div class="menu-item"><button id="undo-btn">Undo</button></div>
         </aside>
 
         <main class="content-area">
@@ -81,6 +80,7 @@
             <div id="tag-management-status" style="margin-top:10px; font-size:0.9em; min-height: 1.2em;"></div>
             <h4>Existing Tags:</h4>
             <ul id="manage-tags-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 5px;">
+                <!-- Tags with delete buttons -->
             </ul>
         </div>
     </div>
