@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded. Initializing application features. Debug prints enabled.');
 
+    // Cache DOM elements
     const photoWall = document.getElementById('photo-wall');
     const prevPageBtn = document.getElementById('prev-page');
     const nextPageBtn = document.getElementById('next-page');
@@ -46,7 +47,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(apiUrl);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}, message: ${await response.text()}`);
             const data = await response.json();
-            console.log('Received media data:', { currentPage: data.current_page, totalPages: data.total_pages, totalItems: data.total_items, itemsInPage: data.media.length });
+            console.log('Received media data:', {
+                currentPage: data.current_page,
+                totalPages: data.total_pages,
+                totalItems: data.total_items,
+                itemsInPage: data.media.length
+            });
             currentMediaItems = data.media;
             renderPhotoWall(currentMediaItems);
             currentPage = data.current_page;
@@ -69,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gap = 10;
         const thumbSize = Math.max(50, Math.floor((wallWidth - (photosPerRow - 1) * gap) / photosPerRow) - 4);
         console.log(`Calculated thumbnail size: ${thumbSize}px for ${photosPerRow} photos per row.`);
+
         mediaItems.forEach(item => {
             const thumbItem = document.createElement('div');
             thumbItem.classList.add('thumbnail-item');
@@ -107,82 +114,46 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/org_paths');
             const data = await response.json();
             orgPathsList.innerHTML = '';
-            data.forEach(path => {
-                const li = document.createElement('li');
-                li.textContent = path;
-                orgPathsList.appendChild(li);
-            });
-        } catch(error) {
-            console.error('Error fetching org paths:', error);
-        }
+            data.forEach(path => { const li = document.createElement('li'); li.textContent = path; orgPathsList.appendChild(li); });
+        } catch (error) { console.error('Error fetching org paths:', error); }
     }
     async function fetchGlobalTags() {
         try {
             const response = await fetch('/api/tags');
             const data = await response.json();
             globalTagsList.innerHTML = '';
-            data.forEach(tag => {
-                const li = document.createElement('li');
-                li.textContent = tag.name;
-                li.dataset.tagId = tag.id;
-                globalTagsList.appendChild(li);
-            });
-        } catch(error) {
-            console.error('Error fetching global tags:', error);
-        }
+            data.forEach(tag => { const li = document.createElement('li'); li.textContent = tag.name; li.dataset.tagId = tag.id; globalTagsList.appendChild(li); });
+        } catch (error) { console.error('Error fetching global tags:', error); }
     }
 
     sizeInput.addEventListener('change', () => {
         const newSize = parseInt(sizeInput.value);
-        if (newSize > 0) { console.log(`Size changed to ${newSize} photos per row.`); photosPerRow = newSize; clearSelectionsAndUndoHistory(); fetchMedia(1);}
-        else { sizeInput.value = photosPerRow; }
+        if (newSize > 0) {
+            console.log(`Size changed to ${newSize} photos per row.`);
+            photosPerRow = newSize; clearSelectionsAndUndoHistory(); fetchMedia(1);
+        } else { sizeInput.value = photosPerRow; }
     });
-    sortBySelect.addEventListener('change', () => { currentSortBy = sortBySelect.value; console.log(`Sort by changed to: ${currentSortBy}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
-    sortOrderSelect.addEventListener('change', () => { currentSortOrder = sortOrderSelect.value; console.log(`Sort order changed to: ${currentSortOrder}`); clearSelectionsAndUndoHistory(); fetchMedia(1); });
-
-    // Updated Refresh Button Logic
-    refreshBtn.addEventListener('click', async () => {
-        console.log('Deep Refresh button clicked.');
-        const originalButtonText = refreshBtn.textContent;
-        refreshBtn.textContent = 'Scanning Libraries...';
-        refreshBtn.disabled = true;
-        let scanErrorOccurred = false; // Renamed variable to avoid conflict
-
-        try {
-            const response = await fetch('/api/scan/trigger', { method: 'POST' });
-            // Try to parse JSON regardless of ok status for error details from API
-            const result = await response.json().catch(() => ({ error: "Failed to parse response JSON."}));
-
-            if (!response.ok) {
-                console.error('Error triggering scan:', result.error || response.statusText, result.details);
-                alert(`Error triggering library scan: ${result.error || response.statusText}`);
-                scanErrorOccurred = true;
-            } else {
-                console.log('Library scan triggered successfully via API.', result.message);
-                alert(result.message || 'Library scan complete. Refreshing view.'); // Simple feedback
-            }
-        } catch (error) { // Catches network errors or if await response.json() fails before .catch()
-            console.error('Network error or other issue triggering scan:', error);
-            alert(`Failed to trigger library scan: ${error.message}. Check network or server console.`);
-            scanErrorOccurred = true;
-        }
-
-        refreshBtn.textContent = originalButtonText;
-        refreshBtn.disabled = false;
-
-        if (!scanErrorOccurred) {
-            console.log('Scan successful or non-blocking error occurred, proceeding to refresh view data.');
-            clearSelectionsAndUndoHistory();
-            fetchMedia(1, currentSortBy, currentSortOrder); // Fetch from page 1 to reflect changes
-            fetchOrgPaths();
-            fetchGlobalTags();
-        } else {
-            console.log('Scan failed or error occurred, view refresh aborted.');
-        }
+    sortBySelect.addEventListener('change', () => {
+        currentSortBy = sortBySelect.value;
+        console.log(`Sort by changed to: ${currentSortBy}`);
+        clearSelectionsAndUndoHistory(); fetchMedia(1);
+    });
+    sortOrderSelect.addEventListener('change', () => {
+        currentSortOrder = sortOrderSelect.value;
+        console.log(`Sort order changed to: ${currentSortOrder}`);
+        clearSelectionsAndUndoHistory(); fetchMedia(1);
+    });
+    refreshBtn.addEventListener('click', () => {
+        console.log('Refresh button clicked.');
+        clearSelectionsAndUndoHistory(); fetchMedia(currentPage); fetchOrgPaths(); fetchGlobalTags();
     });
 
-    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) { console.log('Previous page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1); }});
-    nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) { console.log('Next page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1); }});
+    prevPageBtn.addEventListener('click', () => { if (currentPage > 1) {
+        console.log('Previous page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage - 1);
+    }});
+    nextPageBtn.addEventListener('click', () => { if (currentPage < totalPages) {
+        console.log('Next page requested.'); clearSelectionsAndUndoHistory(); fetchMedia(currentPage + 1);
+    }});
 
     function clearSelectionsAndUndoHistory() {
         selectedMediaIds.clear();
@@ -198,15 +169,86 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onclick = function(event) { allModals.forEach(modal => { if (event.target == modal) closeModal(modal); }); }
 
     let currentViewIndex = -1;
-    function openImageViewer(mediaId) { const itemIndex = currentMediaItems.findIndex(m => m.id === mediaId); if (itemIndex === -1) return; currentViewIndex = itemIndex; updateImageViewerContent(); openModal('image-viewer-modal'); }
-    function updateImageViewerContent() { if (currentViewIndex < 0 || currentViewIndex >= currentMediaItems.length) return; const item = currentMediaItems[currentViewIndex]; fullImage.src = `/api/media/file/${item.id}`; modalCaption.textContent = item.filename; modalPrev.style.display = currentViewIndex > 0 ? 'block' : 'none'; modalNext.style.display = currentViewIndex < currentMediaItems.length - 1 ? 'block' : 'none'; }
+    function openImageViewer(mediaId) {
+        const itemIndex = currentMediaItems.findIndex(m => m.id === mediaId);
+        if (itemIndex === -1) return;
+        currentViewIndex = itemIndex;
+        updateImageViewerContent();
+        openModal('image-viewer-modal');
+    }
+    function updateImageViewerContent() {
+        if (currentViewIndex < 0 || currentViewIndex >= currentMediaItems.length) return;
+        const item = currentMediaItems[currentViewIndex];
+        fullImage.src = `/api/media/file/${item.id}`;
+        modalCaption.textContent = item.filename;
+        modalPrev.style.display = currentViewIndex > 0 ? 'block' : 'none';
+        modalNext.style.display = currentViewIndex < currentMediaItems.length - 1 ? 'block' : 'none';
+    }
     modalPrev.onclick = () => { if(currentViewIndex > 0) { currentViewIndex--; updateImageViewerContent(); }};
     modalNext.onclick = () => { if(currentViewIndex < currentMediaItems.length - 1) { currentViewIndex++; updateImageViewerContent(); }};
-    document.addEventListener('keydown', (event) => { if (imageViewerModal.style.display === 'block') { if (event.key === 'ArrowLeft') modalPrev.click(); else if (event.key === 'ArrowRight') modalNext.click(); else if (event.key === 'Escape') closeModal(imageViewerModal); }});
+    document.addEventListener('keydown', (event) => {
+        if (imageViewerModal.style.display === 'block') {
+            if (event.key === 'ArrowLeft') modalPrev.click();
+            else if (event.key === 'ArrowRight') modalNext.click();
+            else if (event.key === 'Escape') closeModal(imageViewerModal);
+        }
+    });
 
-    filterConfigBtn.onclick = () => { console.log('Filter config modal opened.'); filterStatusDiv.textContent = ''; filterStatusDiv.style.color = ''; openModal('filter-config-modal'); };
-    applyFilterBtn.addEventListener('click', async () => { const filterCode = filterFunctionInput.value; console.log('Applying filter with code:', filterCode.substring(0,100) + '...'); try { const response = await fetch('/api/media/filter_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filter_code: filterCode }) }); const result = await response.json(); if (response.ok) { filterStatusDiv.textContent = 'Filter applied successfully!'; filterStatusDiv.style.color = 'green'; console.log('Filter applied successfully via API.'); closeModal(filterConfigModal); clearSelectionsAndUndoHistory(); fetchMedia(1); } else { filterStatusDiv.textContent = `Error: ${result.error || 'Could not apply filter.'}`; filterStatusDiv.style.color = 'red'; console.error('API error applying filter:', result.error); } } catch (error) { console.error('Network error applying filter:', error); filterStatusDiv.textContent = 'Network error applying filter.'; filterStatusDiv.style.color = 'red'; } });
-    clearFilterBtn.addEventListener('click', async () => { console.log('Clearing filter.'); try { const response = await fetch('/api/media/filter_config', { method: 'DELETE' }); const result = await response.json(); if (response.ok) { filterFunctionInput.value = ''; filterStatusDiv.textContent = 'Filter cleared successfully!'; filterStatusDiv.style.color = 'green'; console.log('Filter cleared successfully via API.'); clearSelectionsAndUndoHistory(); fetchMedia(1); } else { filterStatusDiv.textContent = `Error: ${result.error || 'Could not clear filter.'}`; filterStatusDiv.style.color = 'red'; console.error('API error clearing filter:', result.error); } } catch (error) { console.error('Network error clearing filter:', error); filterStatusDiv.textContent = 'Network error clearing filter.'; filterStatusDiv.style.color = 'red'; } });
+    filterConfigBtn.onclick = () => {
+        console.log('Filter config modal opened.');
+        filterStatusDiv.textContent = ''; // Clear previous status
+        filterStatusDiv.style.color = ''; // Reset color
+        openModal('filter-config-modal');
+    };
+    applyFilterBtn.addEventListener('click', async () => {
+        const filterCode = filterFunctionInput.value;
+        console.log('Applying filter with code:', filterCode.substring(0,100) + '...');
+        try {
+            const response = await fetch('/api/media/filter_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filter_code: filterCode })
+            });
+            const result = await response.json();
+            if (response.ok) {
+                filterStatusDiv.textContent = 'Filter applied successfully!';
+                filterStatusDiv.style.color = 'green';
+                console.log('Filter applied successfully via API.');
+                closeModal(filterConfigModal);
+                clearSelectionsAndUndoHistory(); fetchMedia(1);
+            } else {
+                filterStatusDiv.textContent = `Error: ${result.error || 'Could not apply filter.'}`;
+                filterStatusDiv.style.color = 'red';
+                console.error('API error applying filter:', result.error);
+            }
+        } catch (error) {
+            console.error('Network error applying filter:', error);
+            filterStatusDiv.textContent = 'Network error applying filter.';
+            filterStatusDiv.style.color = 'red';
+        }
+    });
+    clearFilterBtn.addEventListener('click', async () => {
+        console.log('Clearing filter.');
+        try {
+            const response = await fetch('/api/media/filter_config', { method: 'DELETE' });
+            const result = await response.json();
+            if (response.ok) {
+                filterFunctionInput.value = '';
+                filterStatusDiv.textContent = 'Filter cleared successfully!';
+                filterStatusDiv.style.color = 'green';
+                console.log('Filter cleared successfully via API.');
+                clearSelectionsAndUndoHistory(); fetchMedia(1);
+            } else {
+                filterStatusDiv.textContent = `Error: ${result.error || 'Could not clear filter.'}`;
+                filterStatusDiv.style.color = 'red';
+                console.error('API error clearing filter:', result.error);
+            }
+        } catch (error) {
+            console.error('Network error clearing filter:', error);
+            filterStatusDiv.textContent = 'Network error clearing filter.';
+            filterStatusDiv.style.color = 'red';
+        }
+    });
 
     document.getElementById('tag-management-btn').onclick = () => openModal('tag-management-modal');
 
