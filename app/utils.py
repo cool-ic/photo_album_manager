@@ -28,7 +28,7 @@ def execute_user_filter_function(media_item_dict, filter_function_str):
         '__builtins__': allowed_builtins,
         '_print_': _print_collector, # Allows user's print() to be captured
         '_getattr_': Guards.safer_getattr,
-        '_getitem_': Guards.guarded_getitem, # Corrected: For safe dict/list access like media['tag'] or media.tag[0]
+        # '_getitem_': Guards.guarded_getitem, # Removed: This caused AttributeError. Standard dict access should work via safe_builtins.
         # '_iter_': Guards.guarded_iter, # Usually provided by safe_builtins for basic iteration like "for t in media.tag:"
         # Sequence operations for assignments like "a,b = my_list_or_tuple" might need:
         # '_unpack_sequence_': Guards.guarded_unpack_sequence, # If user code uses tuple/list unpacking
