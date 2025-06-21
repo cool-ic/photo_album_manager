@@ -1,6 +1,6 @@
 from flask import current_app, jsonify, request, send_from_directory, abort, render_template, session
 from .models import db, Media, Tag
-from app.tag_manager import get_all_global_tags, add_global_tag, delete_global_tag, add_tags_to_media
+from app.tag_manager import get_all_global_tags, add_global_tag, delete_global_tag, add_tags_to_media, remove_tags_from_media
 from app.image_utils import generate_thumbnail, get_thumbnail_path
 from app.utils import execute_user_filter_function
 from app.scanner import scan_libraries
@@ -263,6 +263,37 @@ def add_media_item_tags_endpoint(media_id):
     updated_tags = [t.name for t in media_item.tags]
     routes_logger.info(f"Tags for media ID {media_id} are now: {updated_tags}")
     return jsonify({'message':'Tags added.','media_id':media_id,'tags':updated_tags}),200
+
+@current_app.route('/api/media/<int:media_id>/tags/<tag_name>', methods=['DELETE'])
+def remove_specific_tag_from_media_endpoint(media_id, tag_name):
+    routes_logger.info(f"DELETE /api/media/{media_id}/tags/{tag_name} called.")
+    media_item = Media.query.get(media_id)
+    if not media_item:
+        routes_logger.warning(f"Media item with ID {media_id} not found for tag removal.")
+        return jsonify({'error': 'Media not found.'}), 404
+
+    tag_to_remove = Tag.query.filter_by(name=tag_name).first()
+    if not tag_to_remove:
+        routes_logger.warning(f"Tag '{tag_name}' not found globally, cannot remove from media ID {media_id}.")
+        return jsonify({'error': f"Tag '{tag_name}' not found globally."}), 404
+
+    # Check if the tag is actually associated with the media item
+    if tag_to_remove not in media_item.tags:
+        routes_logger.info(f"Tag '{tag_name}' is not associated with media ID {media_id}. No action needed.")
+        # Return current tags as if successful, as the state is already achieved
+        updated_tags = [t.name for t in media_item.tags]
+        return jsonify({'message': f"Tag '{tag_name}' was not associated with media item {media_id}.", 'media_id': media_id, 'tags': updated_tags}), 200
+
+    if remove_tags_from_media(media_id, [tag_name]):
+        db.session.refresh(media_item) # Refresh to get the updated tags list
+        updated_tags = [t.name for t in media_item.tags]
+        routes_logger.info(f"Tag '{tag_name}' removed from media ID {media_id}. Current tags: {updated_tags}")
+        return jsonify({'message': f"Tag '{tag_name}' removed from media item {media_id}.", 'media_id': media_id, 'tags': updated_tags}), 200
+    else:
+        # This case should ideally be rare if checks above are done,
+        # but could happen if remove_tags_from_media has an internal issue (e.g. DB commit error)
+        routes_logger.error(f"Failed to remove tag '{tag_name}' from media ID {media_id} using tag_manager.")
+        return jsonify({'error': f"Failed to remove tag '{tag_name}' from media item {media_id}."}), 500
 
 @current_app.route('/api/org_paths', methods=['GET'])
 def list_org_paths():
