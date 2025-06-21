@@ -26,7 +26,7 @@ def execute_user_filter_function(media_item_dict, filter_function_str):
 
     restricted_globals = {
         '__builtins__': allowed_builtins,
-        '_print_': _print_collector, # Allows user's print() to be captured
+        'sandbox_print': _print_collector, # Allows user's print() to be captured, renamed from _print_
         '_getattr_': Guards.safer_getattr,
         # '_getitem_': Guards.guarded_getitem, # Removed: This caused AttributeError. Standard dict access should work via safe_builtins.
         # '_iter_': Guards.guarded_iter, # Usually provided by safe_builtins for basic iteration like "for t in media.tag:"
@@ -47,7 +47,7 @@ def execute_user_filter_function(media_item_dict, filter_function_str):
         "    api_select_result = api_select(media)\n" # Call the user's function
         "except Exception as e:\n"
         # This print goes to _print_collector if user code has error *inside* api_select
-        "    _print_('Error inside user-defined api_select function: %s' % str(e))\n"
+        "    sandbox_print('Error inside user-defined api_select function: %s' % str(e))\n"
         "    api_select_result = True\n" # Permissive default on error within user function
     )
 
