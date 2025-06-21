@@ -75,8 +75,8 @@
         <div class="modal-dialog-content">
             <span class="close-modal-btn">&times;</span>
             <h3>Advanced Filter Configuration</h3>
-            <p>Define an <code>api_select(media)</code> function. 'media' has <code>.tag</code> (list) and <code>.org_PATH</code> (str).</p>
-            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # Example: return 'animal' in media.tag\n    return True"></textarea>
+            <p>Define an <code>api_select(media)</code> function. The <code>media</code> object has attributes like <code>.tags</code> (a list of tag strings) and <code>.org_path</code> (a string).</p>
+            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # Example: return 'news' in media.tags and '2023' in media.org_path\n    return True"></textarea>
             <button id="apply-filter-btn">Apply Filter</button>
             <button id="clear-filter-btn" style="background-color: #ffc107; margin-left: 10px;">Clear Filter</button>
             <div id="filter-status" style="margin-top:10px; font-size:0.9em;"></div>
