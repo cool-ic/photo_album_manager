@@ -163,8 +163,8 @@ def list_media():
         routes_logger.info(f"Filtering {len(db_items)} items. Filter: {user_filter_code[:70]}...")
         for item_from_db in db_items: # Use a more descriptive variable name
             media_dict = {
-                'tag': [t.name for t in (item_from_db.tags or [])], # Ensure 'tag' is always a list for the filter
-                'org_PATH': item_from_db.org_path,
+                'tags': [t.name for t in (item_from_db.tags or [])], # Changed key 'tag' to 'tags'
+                'org_path': item_from_db.org_path, # Changed key 'org_PATH' to 'org_path'
                 'filename': item_from_db.filename,
                 'filepath': item_from_db.filepath,
                 'capture_time': item_from_db.capture_time.isoformat() if item_from_db.capture_time else None,
