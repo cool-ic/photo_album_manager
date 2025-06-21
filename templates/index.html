@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Photo Album Manager</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material.min.css">
+    <style>
+        .CodeMirror {
+            border: 1px solid #eee;
+            height: auto; /* Or a fixed height, e.g., 200px */
+            font-family: monospace; /* Ensure monospace font */
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -64,11 +75,23 @@
         <div class="modal-dialog-content">
             <span class="close-modal-btn">&times;</span>
             <h3>Advanced Filter Configuration</h3>
-            <p>Define an <code>api_select(media)</code> function. 'media' has <code>.tag</code> (list) and <code>.org_PATH</code> (str).</p>
-            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # Example: return 'animal' in media.tag\n    return True"></textarea>
-            <button id="apply-filter-btn">Apply Filter</button>
-            <button id="clear-filter-btn" style="background-color: #ffc107; margin-left: 10px;">Clear Filter</button>
-            <div id="filter-status" style="margin-top:10px; font-size:0.9em;"></div>
+            <p>Define an <code>api_select(media)</code> function. The <code>media</code> object has attributes like <code>.tags</code> (a list of tag strings) and <code>.org_path</code> (a string).</p>
+            <textarea id="filter-function-input" rows="10" cols="50" placeholder="def api_select(media):\n    # Example: return 'news' in media.tags and '2023' in media.org_path\n    return True"></textarea>
+            <div class="filter-buttons" style="margin-top: 10px; margin-bottom: 15px;">
+                <button id="apply-filter-btn">Apply Filter</button>
+                <button id="save-filter-favorite-btn" style="margin-left: 10px; background-color: #28a745;">Save to Favorites</button>
+                <button id="clear-filter-btn" style="background-color: #ffc107; margin-left: 10px;">Clear Filter</button>
+            </div>
+            <div id="filter-status" style="margin-top:10px; font-size:0.9em; min-height: 1.2em;"></div>
+
+            <div class="filter-favorites-section" style="margin-top: 15px;">
+                <h4>Favorite Filters:</h4>
+                <ul id="favorite-filters-list" style="list-style: none; padding: 0; max-height: 150px; overflow-y: auto; border: 1px solid #ddd; background-color: #f9f9f9;">
+                    <!-- Favorite items will be populated here by JS -->
+                    <!-- Example: <li style="padding: 5px; border-bottom: 1px solid #eee;"><span>Snippet...</span> <button>Load</button> <button>Delete</button></li> -->
+                </ul>
+                <p id="no-favorite-filters-message" style="display: none; font-style: italic; color: #777;">No favorites saved yet.</p>
+            </div>
         </div>
     </div>
 
@@ -85,6 +108,9 @@
         </div>
     </div>
 
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

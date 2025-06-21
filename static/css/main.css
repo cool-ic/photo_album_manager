@@ -137,3 +137,92 @@ body, html {
 .modal-prev:hover, .modal-next:hover { background-color: rgba(0,0,0,0.8); }
 .modal-caption { text-align:center; color: #ccc; padding: 10px 0;}
 #manage-tags-list li button { margin-left: 10px; background-color: #dc3545; color: white; border: none; padding: 3px 6px; cursor: pointer; font-size: 0.8em; }
+
+/* Styles for Filter Favorites */
+.filter-favorites-section h4 {
+    margin-top: 15px;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+    color: #333;
+}
+
+#favorite-filters-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 150px; /* Or your preferred height */
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+    border-radius: 3px;
+}
+
+#favorite-filters-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 0px; /* Remove bottom margin if border is enough */
+    background-color: #fff;
+}
+#favorite-filters-list li:last-child {
+    border-bottom: none;
+}
+
+#favorite-filters-list li span {
+    flex-grow: 1;
+    margin-right: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: default; /* To indicate it's not directly clickable for action */
+    font-family: monospace; /* Use monospace for code snippets */
+    font-size: 0.9em;
+}
+
+#favorite-filters-list li button {
+    padding: 3px 8px; /* Adjusted padding */
+    font-size: 0.8em;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 3px;
+    margin-left: 5px; /* Space between buttons if they wrap or for visual separation */
+}
+
+#favorite-filters-list li button.load-favorite-btn {
+    background-color: #007bff;
+}
+#favorite-filters-list li button.load-favorite-btn:hover {
+    background-color: #0056b3;
+}
+
+#favorite-filters-list li button.delete-favorite-btn {
+    background-color: #dc3545;
+}
+#favorite-filters-list li button.delete-favorite-btn:hover {
+    background-color: #c82333;
+}
+
+#no-favorite-filters-message {
+    padding: 10px;
+    font-style: italic;
+    color: #777;
+    text-align: center;
+}
+
+.filter-buttons button { /* General styling for buttons in this group */
+    padding: 8px 12px; /* Consistent padding */
+    border: none;
+    border-radius: 3px;
+    color: white;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+.filter-buttons button#apply-filter-btn { background-color: #007bff; }
+.filter-buttons button#apply-filter-btn:hover { background-color: #0056b3; }
+.filter-buttons button#save-filter-favorite-btn { background-color: #28a745; }
+.filter-buttons button#save-filter-favorite-btn:hover { background-color: #1e7e34; }
+.filter-buttons button#clear-filter-btn { background-color: #ffc107; color: #212529; }
+.filter-buttons button#clear-filter-btn:hover { background-color: #e0a800; }
