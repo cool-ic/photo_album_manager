@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalPrev = document.querySelector('.modal-prev');
     const modalNext = document.querySelector('.modal-next');
 
+    // CodeMirror instance for filter input
+    let filterCodeEditor = null;
+
     // Application State
     let currentPage = 1, totalPages = 1;
     let photosPerRow = parseInt(sizeInput.value) || 5;
@@ -186,10 +189,61 @@ document.addEventListener('DOMContentLoaded', () => {
     if(prevPageBtn) prevPageBtn.addEventListener('click', () => { if(currentPage>1){clearSelectionsAndActiveTags();fetchMedia(currentPage-1)} });
     if(nextPageBtn) nextPageBtn.addEventListener('click', () => { if(currentPage<totalPages){clearSelectionsAndActiveTags();fetchMedia(currentPage+1)} });
     const allModals=document.querySelectorAll('.modal');const closeButtons=document.querySelectorAll('.close-modal-btn');function openModal(modalId){const modal=document.getElementById(modalId);if(modal)modal.style.display='block'}function closeModal(modalElement){if(modalElement)modalElement.style.display='none'}if(closeButtons)closeButtons.forEach(b=>{b.onclick=function(){closeModal(b.closest('.modal'))}});window.onclick=function(event){allModals.forEach(m=>{if(event.target==m)closeModal(m)})};let currentViewIndex=-1;function openImageViewer(mediaId){const i=currentMediaItems.findIndex(m=>m.id===mediaId);if(i===-1)return;currentViewIndex=i;updateImageViewerContent();openModal('image-viewer-modal')}function updateImageViewerContent(){if(currentViewIndex<0||currentViewIndex>=currentMediaItems.length)return;const item=currentMediaItems[currentViewIndex];if(fullImage)fullImage.src=`/api/media/file/${item.id}`;if(modalCaption)modalCaption.textContent=item.filename;if(modalPrev)modalPrev.style.display=currentViewIndex>0?'block':'none';if(modalNext)modalNext.style.display=currentViewIndex<currentMediaItems.length-1?'block':'none'}if(modalPrev)modalPrev.onclick=()=>{if(currentViewIndex>0){currentViewIndex--;updateImageViewerContent()}};if(modalNext)modalNext.onclick=()=>{if(currentViewIndex<currentMediaItems.length-1){currentViewIndex++;updateImageViewerContent()}};document.addEventListener('keydown',(event)=>{if(imageViewerModal && imageViewerModal.style.display==='block'){if(event.key==='ArrowLeft')modalPrev.click();else if(event.key==='ArrowRight')modalNext.click();else if(event.key==='Escape')closeModal(imageViewerModal)}});
-    if(filterConfigBtn) filterConfigBtn.onclick=()=>{if(filterStatusDiv)filterStatusDiv.textContent='';openModal('filter-config-modal')};
-    if(applyFilterBtn) applyFilterBtn.addEventListener('click',async()=>{const fc=filterFunctionInput.value;try{const r=await fetch('/api/media/filter_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filter_code:fc})});const rs=await r.json();if(r.ok){if(filterStatusDiv){filterStatusDiv.textContent='Filter applied!';filterStatusDiv.style.color='green'}if(filterConfigModal)closeModal(filterConfigModal);clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
-    if(clearFilterBtn) clearFilterBtn.addEventListener('click',async()=>{try{const r=await fetch('/api/media/filter_config',{method:'DELETE'});const rs=await r.json();if(r.ok){if(filterFunctionInput)filterFunctionInput.value='';if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
+    if(filterConfigBtn) filterConfigBtn.onclick=()=>{
+        if(filterStatusDiv)filterStatusDiv.textContent='';
+        openModal('filter-config-modal');
+        // Refresh CodeMirror instance if it exists and modal is opened,
+        // as it might not render correctly if initialized while hidden.
+        if (filterCodeEditor) {
+            setTimeout(() => filterCodeEditor.refresh(), 0);
+        }
+    };
+    if(applyFilterBtn) applyFilterBtn.addEventListener('click',async()=>{
+        const fc = filterCodeEditor ? filterCodeEditor.getValue() : filterFunctionInput.value; // Get value from CodeMirror if available
+        try{
+            const r=await fetch('/api/media/filter_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filter_code:fc})});
+            const rs=await r.json();
+            if(r.ok){
+                if(filterStatusDiv){filterStatusDiv.textContent='Filter applied!';filterStatusDiv.style.color='green'}
+                if(filterConfigModal)closeModal(filterConfigModal);
+                clearSelectionsAndActiveTags();
+                fetchMedia(1);
+            }else{
+                if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter error'}`;filterStatusDiv.style.color='red'}
+            }
+        }catch(e){
+            if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}
+        }
+    });
+    if(clearFilterBtn) clearFilterBtn.addEventListener('click',async()=>{try{const r=await fetch('/api/media/filter_config',{method:'DELETE'});const rs=await r.json();if(r.ok){
+        if(filterCodeEditor) {
+            filterCodeEditor.setValue(''); // Clear CodeMirror instance
+        } else if (filterFunctionInput) {
+            filterFunctionInput.value=''; // Fallback for plain textarea
+        }
+        if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
     if(tagManagementBtn) tagManagementBtn.onclick=()=>{if(tagManagementStatusDiv)tagManagementStatusDiv.textContent='';openModal('tag-management-modal');if(populateManageTagsList)populateManageTagsList()};
+
+    // Initialize CodeMirror for the filter function input
+    if (filterFunctionInput && typeof CodeMirror !== 'undefined') {
+        filterCodeEditor = CodeMirror.fromTextArea(filterFunctionInput, {
+            mode: "python",
+            theme: "material", // Make sure you included material.css or choose another theme
+            lineNumbers: true,
+            indentUnit: 4,
+            smartIndent: true,
+            tabSize: 4,
+            indentWithTabs: false, // Use spaces for tabs, common Python practice
+            // extraKeys: {"Tab": "indentMore", "Shift-Tab": "indentLess"} // Usually default
+        });
+        // Adjust size if needed, e.g., when modal is shown or based on content
+        // filterCodeEditor.setSize(null, "auto"); // Example: auto height based on content
+    } else if (!filterFunctionInput) {
+        console.warn("filterFunctionInput textarea not found for CodeMirror initialization.");
+    } else if (typeof CodeMirror === 'undefined') {
+        console.warn("CodeMirror library not loaded. Filter input will be a plain textarea.");
+    }
+
 
     fetchMedia(currentPage, currentSortBy, currentSortOrder);
     if(fetchOrgPaths)fetchOrgPaths();
