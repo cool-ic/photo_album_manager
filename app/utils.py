@@ -62,9 +62,16 @@ def execute_user_filter_function(media_item_dict, filter_function_str):
         final_outcome = bool(results_dict_after_exec.get('api_select_result', True))
         utils_logger.debug(f"Filter outcome for {media_item_dict.get('filename', 'N/A')}: {final_outcome}")
 
-        collected_prints = _print_collector.printed_text
+        # Attempt to get collected prints using getvalue() method
+        collected_prints = ""
+        if hasattr(_print_collector, 'getvalue'):
+            collected_prints = _print_collector.getvalue()
+        elif hasattr(_print_collector, 'text'): # Another common possibility
+            collected_prints = _print_collector.text
+        # Add other alternatives here if known, or log a warning if no method found
+
         if collected_prints:
-            utils_logger.info(f"Prints from user filter for {media_item_dict.get('filename', 'N/A')}:\n{collected_prints.strip()}")
+            utils_logger.info(f"Prints from user filter for {media_item_dict.get('filename', 'N/A')}:\n{str(collected_prints).strip()}")
 
     except SyntaxError as se:
         utils_logger.error(f"Syntax error in user filter function (compilation stage): {se}")
