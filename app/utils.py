@@ -2,6 +2,7 @@ import RestrictedPython
 from RestrictedPython import compile_restricted, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
 from RestrictedPython import Guards # Make sure Guards itself is imported directly
+from types import SimpleNamespace
 import logging
 
 utils_logger = logging.getLogger('photo_album_manager.utils') # Use fixed name
@@ -26,13 +27,13 @@ def execute_user_filter_function(media_item_dict, filter_function_str):
 
     restricted_globals = {
         '__builtins__': allowed_builtins,
-        'sandbox_print': _print_collector, # Allows user's print() to be captured, renamed from _print_
+        'sandbox_print': lambda text_to_print: _print_collector.write(str(text_to_print) + '\\n'), # Use .write and add newline
         '_getattr_': Guards.safer_getattr,
         # '_getitem_': Guards.guarded_getitem, # Removed: This caused AttributeError. Standard dict access should work via safe_builtins.
         # '_iter_': Guards.guarded_iter, # Usually provided by safe_builtins for basic iteration like "for t in media.tag:"
         # Sequence operations for assignments like "a,b = my_list_or_tuple" might need:
         # '_unpack_sequence_': Guards.guarded_unpack_sequence, # If user code uses tuple/list unpacking
-        'media': media_item_dict # The media item dictionary itself is a global
+        'media': SimpleNamespace(**media_item_dict) # Wrap dict in SimpleNamespace for attribute access
     }
 
     utils_logger.debug(f"Executing filter for media: {media_item_dict.get('filename', media_item_dict.get('filepath', 'N/A'))}")

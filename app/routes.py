@@ -163,7 +163,7 @@ def list_media():
         routes_logger.info(f"Filtering {len(db_items)} items. Filter: {user_filter_code[:70]}...")
         for item_from_db in db_items: # Use a more descriptive variable name
             media_dict = {
-                'tag': [t.name for t in item_from_db.tags],
+                'tag': [t.name for t in (item_from_db.tags or [])], # Ensure 'tag' is always a list for the filter
                 'org_PATH': item_from_db.org_path,
                 'filename': item_from_db.filename,
                 'filepath': item_from_db.filepath,
@@ -193,7 +193,7 @@ def list_media():
             'id': s.id, 'filepath': s.filepath, 'filename': s.filename, 'org_path': s.org_path,
             'capture_time': s.capture_time.isoformat() if s.capture_time else None,
             'modification_time': s.modification_time.isoformat() if s.modification_time else None,
-            'filesize': s.filesize, 'media_type': s.media_type, 'tags': [t.name for t in s.tags]
+            'filesize': s.filesize, 'media_type': s.media_type, 'tags': [t.name for t in (s.tags or [])]
         } for s in paginated_slice
     ]
     return jsonify({'media': media_list_response, 'total_pages': total_pages, 'current_page': page, 'total_items': total_items})
