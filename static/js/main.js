@@ -33,8 +33,108 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalPrev = document.querySelector('.modal-prev');
     const modalNext = document.querySelector('.modal-next');
 
+    // Favorite Filters elements
+    const saveFilterFavoriteBtn = document.getElementById('save-filter-favorite-btn');
+    const favoriteFiltersListUl = document.getElementById('favorite-filters-list');
+    const noFavoriteFiltersMessage = document.getElementById('no-favorite-filters-message');
+    const LOCALSTORAGE_FILTER_FAVORITES_KEY = 'photoAlbumManagerFilterFavorites';
+
     // CodeMirror instance for filter input
     let filterCodeEditor = null;
+
+    // --- Filter Favorites Functions ---
+    function loadFilterFavorites() {
+        const favoritesJson = localStorage.getItem(LOCALSTORAGE_FILTER_FAVORITES_KEY);
+        try {
+            const favorites = JSON.parse(favoritesJson);
+            return Array.isArray(favorites) ? favorites : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveFilterFavorites(favoritesArray) {
+        localStorage.setItem(LOCALSTORAGE_FILTER_FAVORITES_KEY, JSON.stringify(favoritesArray));
+    }
+
+    function addFilterFavorite(snippet) {
+        if (!snippet || !snippet.trim()) {
+            alert("Cannot save an empty filter snippet.");
+            return;
+        }
+        const favorites = loadFilterFavorites();
+        // Optional: Prevent duplicates
+        if (favorites.includes(snippet)) {
+            // alert("This filter snippet is already in your favorites.");
+            // return;
+            // Or allow duplicates, current behavior allows duplicates.
+        }
+        favorites.push(snippet);
+        saveFilterFavorites(favorites);
+        renderFilterFavorites(); // Re-render the list
+    }
+
+    function deleteFilterFavorite(indexToDelete) {
+        let favorites = loadFilterFavorites();
+        if (indexToDelete >= 0 && indexToDelete < favorites.length) {
+            favorites.splice(indexToDelete, 1);
+            saveFilterFavorites(favorites);
+            renderFilterFavorites();
+        }
+    }
+
+    function renderFilterFavorites() {
+        if (!favoriteFiltersListUl || !noFavoriteFiltersMessage) return;
+
+        const favorites = loadFilterFavorites();
+        favoriteFiltersListUl.innerHTML = ''; // Clear existing items
+
+        if (favorites.length === 0) {
+            noFavoriteFiltersMessage.style.display = 'block';
+            return;
+        }
+
+        noFavoriteFiltersMessage.style.display = 'none';
+
+        favorites.forEach((snippet, index) => {
+            const li = document.createElement('li');
+            li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #eee; margin-bottom: 4px; background-color: #fff; border-radius: 3px;';
+
+            const snippetText = document.createElement('span');
+            snippetText.textContent = snippet.length > 60 ? snippet.substring(0, 57) + '...' : snippet; // Truncate if long
+            snippetText.title = snippet; // Show full snippet on hover
+            snippetText.style.cssText = 'flex-grow: 1; margin-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default;';
+
+            const btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'display: flex; gap: 5px;';
+
+            const loadBtn = document.createElement('button');
+            loadBtn.textContent = 'Load';
+            loadBtn.className = 'load-favorite-btn'; // Added class
+            // loadBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
+            loadBtn.onclick = () => {
+                if (filterCodeEditor) {
+                    filterCodeEditor.setValue(snippet);
+                    filterCodeEditor.refresh(); // Ensure it's rendered correctly
+                } else if (filterFunctionInput) { // Fallback if CodeMirror not init
+                    filterFunctionInput.value = snippet;
+                }
+            };
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = 'Del';
+            deleteBtn.className = 'delete-favorite-btn'; // Added class
+            // deleteBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
+            deleteBtn.onclick = () => deleteFilterFavorite(index);
+
+            btnContainer.appendChild(loadBtn);
+            btnContainer.appendChild(deleteBtn);
+            li.appendChild(snippetText);
+            li.appendChild(btnContainer);
+            favoriteFiltersListUl.appendChild(li);
+        });
+    }
+    // --- End Filter Favorites Functions ---
 
     // Application State
     let currentPage = 1, totalPages = 1;
@@ -197,7 +297,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (filterCodeEditor) {
             setTimeout(() => filterCodeEditor.refresh(), 0);
         }
+        renderFilterFavorites(); // Load and display favorites when modal opens
     };
+
+    if (saveFilterFavoriteBtn) {
+        saveFilterFavoriteBtn.addEventListener('click', () => {
+            const snippetToSave = filterCodeEditor ? filterCodeEditor.getValue() : filterFunctionInput.value;
+            addFilterFavorite(snippetToSave);
+        });
+    }
+
     if(applyFilterBtn) applyFilterBtn.addEventListener('click',async()=>{
         const fc = filterCodeEditor ? filterCodeEditor.getValue() : filterFunctionInput.value; // Get value from CodeMirror if available
         try{
