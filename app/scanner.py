@@ -22,26 +22,53 @@ if not scanner_logger.handlers:
 def get_capture_time_from_exif(filepath):
     try:
         img = Image.open(filepath)
-        exif_data = img._getexif()
-        if exif_data:
-            for tag, value in exif_data.items():
-                tag_name = TAGS.get(tag, tag)
-                if tag_name == 'DateTimeOriginal' or tag_name == 'DateTimeDigitized':
+
+        # Skip EXIF attempt for formats that typically don't have it or handle it differently
+        if img.format in ['GIF', 'PNG', 'WEBP']:
+            scanner_logger.debug(f"EXIF: Skipping EXIF read for format {img.format} on {filepath}")
+            return None
+
+        exif_data = None
+        try:
+            exif_data = img.getexif() # Preferred method for Pillow 7+
+        except AttributeError:
+            scanner_logger.debug(f"EXIF: img.getexif() failed (likely older Pillow), trying img._getexif() for {filepath}")
+            try:
+                exif_data = img._getexif()
+            except AttributeError: # If _getexif also fails (e.g. for non-JPEG types passed mistakenly or very old Pillow)
+                 scanner_logger.warning(f"EXIF: Neither getexif nor _getexif method found for image {filepath} (format: {img.format}).")
+                 return None
+        except Exception as e_getexif: # Catch other errors during getexif() itself
+            scanner_logger.warning(f"EXIF: Error calling getexif/ _getexif on {filepath}: {e_getexif}")
+            return None
+
+
+        if exif_data is not None: # Check if exif_data was successfully retrieved
+            for tag_id, value in exif_data.items():
+                tag_name = TAGS.get(tag_id, tag_id)
+                if tag_name in ['DateTimeOriginal', 'DateTimeDigitized']:
+                    date_str = None
                     if isinstance(value, str):
-                        # Ensure string is not empty or just spaces before parsing
-                        if value.strip():
-                            return datetime.strptime(value, '%Y:%m:%d %H:%M:%S')
+                        date_str = value.strip()
                     elif isinstance(value, bytes):
-                        decoded_value = value.decode('utf-8', errors='ignore')
-                        if decoded_value.strip():
-                            return datetime.strptime(decoded_value, '%Y:%m:%d %H:%M:%S')
-            # scanner_logger.debug(f"EXIF: Relevant date tags not found in {filepath}")
-        # else:
-            # scanner_logger.debug(f"EXIF: No EXIF data found in {filepath}")
+                        date_str = value.decode('utf-8', errors='ignore').strip()
+
+                    if date_str:
+                        try:
+                            return datetime.strptime(date_str, '%Y:%m:%d %H:%M:%S')
+                        except ValueError:
+                            scanner_logger.warning(f"EXIF: Could not parse date string '{date_str}' from {tag_name} in {filepath}")
+            scanner_logger.debug(f"EXIF: DateTimeOriginal/DateTimeDigitized tags not found or empty in {filepath}")
+        else:
+            scanner_logger.debug(f"EXIF: No EXIF data retrieved from {filepath} (format: {img.format})")
+
     except FileNotFoundError:
         scanner_logger.warning(f"EXIF: File not found when trying to open for EXIF: {filepath}")
+    except Image.UnidentifiedImageError:
+        scanner_logger.warning(f"EXIF: Cannot identify image file (Pillow UnidentifiedImageError): {filepath}")
     except Exception as e:
-        scanner_logger.error(f"EXIF: Could not read EXIF from {filepath}: {e}", exc_info=False) # exc_info=True for full traceback
+        # Log other, unexpected errors during EXIF processing as errors
+        scanner_logger.error(f"EXIF: Unexpected error processing EXIF for {filepath}: {e}", exc_info=False)
     return None
 
 def scan_libraries():
@@ -102,8 +129,22 @@ def scan_libraries():
 
         modification_time = datetime.fromtimestamp(stat_info.st_mtime)
         filesize = stat_info.st_size
-        capture_time = get_capture_time_from_exif(filepath) if media_data["media_type"] == 'image' else None
-        effective_capture_time = capture_time if capture_time else datetime(1999, 1, 1, 0, 0, 0)
+        capture_time = None
+        if media_data["media_type"] == 'image':
+            capture_time = get_capture_time_from_exif(filepath)
+
+        # Fallback strategy for effective_capture_time:
+        # 1. EXIF capture time
+        # 2. File modification time
+        # 3. Hardcoded default (1999-01-01)
+        if capture_time:
+            effective_capture_time = capture_time
+        elif modification_time: # modification_time is already a datetime object
+            effective_capture_time = modification_time
+            scanner_logger.debug(f"EXIF: Using file modification time {effective_capture_time} as capture time for {filepath}")
+        else: # Should be very rare if os.stat worked
+            effective_capture_time = datetime(1999, 1, 1, 0, 0, 0)
+            scanner_logger.warning(f"EXIF: Using default 1999-01-01 capture time for {filepath} (no EXIF and no mod time).")
 
         if filepath in existing_media_in_db:
             media_item = existing_media_in_db[filepath]

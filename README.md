@@ -9,7 +9,7 @@ A web application for managing local photo and video libraries, built with Pytho
     *   **Configurable Layout:** Users can adjust the number of "Photos per Row," which dynamically changes thumbnail sizes.
     *   **Navigation:** Supports pagination for large libraries.
     *   **Image Viewer:** "X + Left-click" opens media in a full-size modal viewer with keyboard navigation (Left/Right arrows for prev/next, ESC to close).
-    *   **Sorting:** Media can be sorted by capture time, modification time, filepath, or filename (ascending/descending). Missing EXIF capture times default to 1999-01-01.
+    *   **Sorting:** Media can be sorted by capture time, modification time, filepath, or filename (ascending/descending). If EXIF capture time is unavailable, the file's modification time is used as a fallback; if that's also unavailable, it defaults to 1999-01-01.
     *   **Refresh:** A "Refresh" button rescans libraries and updates the view according to current filters and sort order.
 
 *   **Tag Management:**
@@ -190,7 +190,7 @@ A web application for managing local photo and video libraries, built with Pytho
 
 *   **feature1.6：排序 Sort By**
     *   菜单栏提供【排序 Sort By】控件，允许用户对当前显示的照片列表按照拍摄时间（`capture_time`）、文件修改时间（`modification_time`）或文件绝对路径（`filepath`）进行升序或降序排序。
-    *   若照片（尤其是老照片或手机截图）缺少EXIF拍摄时间信息，则其拍摄时间被视为1999年1月1日零点。
+    *   若照片缺少EXIF拍摄时间信息，则优先使用文件的修改时间作为拍摄时间；若修改时间也无法获取，则其拍摄时间被视为1999年1月1日零点。
 
 *   **feature1.7：删除选中照片 Delete Selected Photos**
     *   菜单栏提供【删除选中 Delete Selected】按钮。
