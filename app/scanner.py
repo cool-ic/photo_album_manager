@@ -118,11 +118,11 @@ def scan_libraries():
     # If performance becomes an issue on very large DBs, this could be optimized.
     scanner_logger.info("Marking all existing database media as potentially inaccessible before scan verification...")
     all_db_media_count = Media.query.update({Media.is_accessible: False})
-    # db.session.commit() # Decided to commit at the end of the scan for atomicity.
-    scanner_logger.info(f"Marked {all_db_media_count} items. Note: is_accessible will be set to True for found/updated items.")
+    db.session.commit() # Commit this initial marking to ensure it's visible to subsequent queries
+    scanner_logger.info(f"Marked {all_db_media_count} items and committed. Note: is_accessible will be set to True for found/updated items.")
 
 
-    existing_media_in_db = {media.filepath: media for media in Media.query.all()} # Re-fetch or use the updated objects if session is managed
+    existing_media_in_db = {media.filepath: media for media in Media.query.all()} # Re-fetch to ensure objects reflect committed state
     scanner_logger.debug(f"Found {len(existing_media_in_db)} media items currently in database (after initial marking).")
 
     processed_paths_in_fs = set() # Keep track of paths found in this scan run
