@@ -7,6 +7,7 @@ A web application for managing local photo and video libraries, built with Pytho
 *   **Media Organization & Viewing:**
     *   **Photo Wall:** Displays media in a responsive grid. Thumbnails are square-cropped and cached.
     *   **Configurable Layout:** Users can adjust the number of "Photos per Row," which dynamically changes thumbnail sizes.
+    *   **Video Visibility Toggle:** A checkbox in the menu allows users to "Show Photos Only (Hide Videos)", dynamically filtering the displayed media types based on this preference.
     *   **Library Scanning & Visibility:** The application scans configured `ORG_PATHS`. Media from paths that are removed from the configuration (or become inaccessible) are hidden from view but their records remain in the database. Similarly, files deleted from disk within an active library path are also hidden rather than their database records being deleted. The UI only displays accessible media.
     *   **Navigation:** Supports pagination for large libraries.
     *   **Image Viewer:** "X + Left-click" opens media in a full-size modal viewer with keyboard navigation (Left/Right arrows for prev/next, ESC to close).
@@ -171,7 +172,8 @@ A web application for managing local photo and video libraries, built with Pytho
         *   按住【X键 + 左键单击】图片可查看原图。
         *   原图查看模式下，支持使用左右方向键切换上一张/下一张图片，按【ESC键】退出查看。
     *   **feature1.1.3【D+左键删除标签 D+Click to Remove Tag】**：在照片墙的缩略图上，当鼠标悬停于某个显示的标签上时，按下【D键 + 左键单击】该标签，即可从当前照片移除这一个特定标签。
-    *   **feature1.1.4【翻页 Page Navigation】**：支持“上一页”、“下一页”翻页功能。
+    *   **feature1.1.4【视频显示切换 Video Display Toggle】**：菜单栏提供“仅显示照片（隐藏视频）”复选框，用户勾选后，照片墙将仅展示图片类型的媒体，视频将被隐藏。取消勾选则同时显示图片和视频。
+    *   **feature1.1.5【翻页 Page Navigation】**：支持“上一页”、“下一页”翻页功能。
 
 *   **feature1.2：信息看板 Info Panel**
     *   网页右侧固定显示信息看板（Backend Info），展示当前系统中所有存在的全局标签（Global Tag List）以及所有已配置的图库根路径（`org_path`列表）。此看板为用户编写自定义筛选函数时提供参考。

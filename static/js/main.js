@@ -42,6 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // CodeMirror instance for filter input
     let filterCodeEditor = null;
 
+    // "Hide Videos" checkbox
+    const hideVideosCheckbox = document.getElementById('hide-videos-checkbox');
+
     // --- Filter Favorites Functions ---
     function loadFilterFavorites() {
         const favoritesJson = localStorage.getItem(LOCALSTORAGE_FILTER_FAVORITES_KEY);
@@ -161,7 +164,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Core Functions (some minified for focus) ---
     function getCalculatedPerPage() { const c=(parseInt(photoWall.style.getPropertyValue('--photos-per-row'))||photosPerRow),w=photoWall.clientWidth,a=photoWall.parentElement?photoWall.parentElement.clientHeight:window.innerHeight,g=10;if(w===0||a===0||c===0)return c>0?c*4:20;const cl=(w-(c-1)*g)/c,th=cl,s=th+g;if(s<=g)return c;const n=Math.max(1,Math.floor(a/s)),p=c*n;return Math.max(c,p); }
-    async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) { if(photoWall)void photoWall.offsetHeight;const cp=getCalculatedPerPage();lastCalculatedPerPage=cp;const u=`/api/media?page=${page}&per_page=${cp}&sort_by=${sortBy}&sort_order=${sortOrder}`;console.log(`Fetching: ${u}`);try{const r=await fetch(u);if(!r.ok)throw new Error(`${r.status}: ${await r.text()}`);const d=await r.json();currentMediaItems=d.media;renderPhotoWall(d.media);currentPage=d.current_page;totalPages=d.total_pages;if(updatePaginationControls)updatePaginationControls()}catch(e){console.error('Fetch error:',e);if(photoWall)photoWall.innerHTML=`<p>Error: ${e.message}</p>`} }
+    async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) {
+        if (photoWall) void photoWall.offsetHeight; // Force reflow for per_page calculation
+        const calculatedPerPage = getCalculatedPerPage();
+        lastCalculatedPerPage = calculatedPerPage;
+
+        let apiUrl = `/api/media?page=${page}&per_page=${calculatedPerPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+
+        if (hideVideosCheckbox && hideVideosCheckbox.checked) {
+            apiUrl += `&media_types_filter=image`;
+        } else {
+            apiUrl += `&media_types_filter=image,video`; // Explicitly ask for both if not hiding videos
+        }
+
+        console.log(`Fetching: ${apiUrl}`);
+        try {
+            const r = await fetch(apiUrl);
+            if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+            const d = await r.json();
+            currentMediaItems = d.media;
+            renderPhotoWall(d.media);
+            currentPage = d.current_page;
+            totalPages = d.total_pages;
+            if (updatePaginationControls) updatePaginationControls();
+        } catch (e) {
+            console.error('Fetch error:', e);
+            if (photoWall) photoWall.innerHTML = `<p>Error loading media: ${e.message}</p>`;
+        }
+    }
     async function handleQuickTagging(mediaId, thumbItem) { const aT=Array.from(activeTagNamesForOperations);if(aT.length===0){console.warn('[QuickTag] No active tags.');return}try{const r=await fetch(`/api/media/${mediaId}/tags`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag_names:aT})});const rs=await r.json();if(r.ok){const idx=currentMediaItems.findIndex(m=>m.id===mediaId);if(idx>-1)currentMediaItems[idx].tags=rs.tags;renderPhotoWall(currentMediaItems);if(thumbItem)thumbItem.style.outline='2px solid green';setTimeout(()=>{if(thumbItem)thumbItem.style.outline=''},1000)}else{alert(`Error: ${rs.error||'Unknown'}`)}}catch(e){alert('Network error.')} }
     function renderPhotoWall(mediaItems) {
         if (!photoWall) return;
@@ -417,6 +447,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
     if(tagManagementBtn) tagManagementBtn.onclick=()=>{if(tagManagementStatusDiv)tagManagementStatusDiv.textContent='';openModal('tag-management-modal');if(populateManageTagsList)populateManageTagsList()};
+
+    if (hideVideosCheckbox) {
+        hideVideosCheckbox.addEventListener('change', () => {
+            clearSelectionsAndActiveTags(); // Clear selections as the view is changing
+            fetchMedia(1); // Refetch media for page 1 with new filter state
+        });
+    }
 
     // Initialize CodeMirror for the filter function input
     if (filterFunctionInput && typeof CodeMirror !== 'undefined') {
