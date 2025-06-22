@@ -143,24 +143,109 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSortBy = sortBySelect.value, currentSortOrder = sortOrderSelect.value;
     const selectedMediaIds = new Set();
     const activeTagNamesForOperations = new Set();
-    let currentMediaItems = [], isXKeyPressed = false, isTKeyPressed = false, isDKeyPressed = false, resizeTimeout, lastCalculatedPerPage = 0;
+    let currentMediaItems = [], isXKeyPressed = false, isTKeyPressed = false, isDKeyPressed = false, isShiftKeyPressed = false, resizeTimeout, lastCalculatedPerPage = 0;
+    let lastClickedPhotoIndex = -1; // For Shift-click range selection
 
     document.addEventListener('keydown', (event) => {
         if(event.key==='x'||event.key==='X')isXKeyPressed=true;
         if(event.key==='t'||event.key==='T')isTKeyPressed=true;
         if(event.key==='d'||event.key==='D')isDKeyPressed=true;
+        if(event.key==='Shift') isShiftKeyPressed = true;
     });
     document.addEventListener('keyup', (event) => {
         if(event.key==='x'||event.key==='X')isXKeyPressed=false;
         if(event.key==='t'||event.key==='T')isTKeyPressed=false;
         if(event.key==='d'||event.key==='D')isDKeyPressed=false;
+        if(event.key==='Shift') isShiftKeyPressed = false;
     });
 
     // --- Core Functions (some minified for focus) ---
     function getCalculatedPerPage() { const c=(parseInt(photoWall.style.getPropertyValue('--photos-per-row'))||photosPerRow),w=photoWall.clientWidth,a=photoWall.parentElement?photoWall.parentElement.clientHeight:window.innerHeight,g=10;if(w===0||a===0||c===0)return c>0?c*4:20;const cl=(w-(c-1)*g)/c,th=cl,s=th+g;if(s<=g)return c;const n=Math.max(1,Math.floor(a/s)),p=c*n;return Math.max(c,p); }
     async function fetchMedia(page = 1, sortBy = currentSortBy, sortOrder = currentSortOrder) { if(photoWall)void photoWall.offsetHeight;const cp=getCalculatedPerPage();lastCalculatedPerPage=cp;const u=`/api/media?page=${page}&per_page=${cp}&sort_by=${sortBy}&sort_order=${sortOrder}`;console.log(`Fetching: ${u}`);try{const r=await fetch(u);if(!r.ok)throw new Error(`${r.status}: ${await r.text()}`);const d=await r.json();currentMediaItems=d.media;renderPhotoWall(d.media);currentPage=d.current_page;totalPages=d.total_pages;if(updatePaginationControls)updatePaginationControls()}catch(e){console.error('Fetch error:',e);if(photoWall)photoWall.innerHTML=`<p>Error: ${e.message}</p>`} }
     async function handleQuickTagging(mediaId, thumbItem) { const aT=Array.from(activeTagNamesForOperations);if(aT.length===0){console.warn('[QuickTag] No active tags.');return}try{const r=await fetch(`/api/media/${mediaId}/tags`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag_names:aT})});const rs=await r.json();if(r.ok){const idx=currentMediaItems.findIndex(m=>m.id===mediaId);if(idx>-1)currentMediaItems[idx].tags=rs.tags;renderPhotoWall(currentMediaItems);if(thumbItem)thumbItem.style.outline='2px solid green';setTimeout(()=>{if(thumbItem)thumbItem.style.outline=''},1000)}else{alert(`Error: ${rs.error||'Unknown'}`)}}catch(e){alert('Network error.')} }
-    function renderPhotoWall(mediaItems) { if(!photoWall)return;photoWall.innerHTML='';if(!mediaItems||mediaItems.length===0){photoWall.innerHTML='<p>No media.</p>';return}mediaItems.forEach(item=>{const ti=document.createElement('div');ti.classList.add('thumbnail-item');ti.dataset.id=String(item.id);ti.style.backgroundImage=`url(/api/media/thumbnail/${item.id})`;if(selectedMediaIds.has(item.id))ti.classList.add('selected');if(item.tags&&item.tags.length>0){const o=document.createElement('div');o.className='thumbnail-tags-overlay';item.tags.slice(0,3).forEach(tn=>{const s=document.createElement('span');s.className='thumbnail-tag';s.textContent=tn;s.dataset.tagName=tn;o.appendChild(s);s.addEventListener('click',(tagEvent)=>{if(isDKeyPressed){tagEvent.preventDefault();tagEvent.stopPropagation();handleRemoveTagFromMedia(item.id,tn,s)}})});if(item.tags.length>3){const m=document.createElement('span');m.className='thumbnail-tag-more';m.textContent='...';o.appendChild(m)}ti.appendChild(o)}ti.addEventListener('click',(e)=>{e.preventDefault();const mId=parseInt(item.id);if(isTKeyPressed){handleQuickTagging(mId,ti)}else if(isXKeyPressed){openImageViewer(mId)}else{toggleSelection(ti,mId)}});photoWall.appendChild(ti)}) }
+    function renderPhotoWall(mediaItems) {
+        if (!photoWall) return;
+        photoWall.innerHTML = '';
+        if (!mediaItems || mediaItems.length === 0) {
+            photoWall.innerHTML = '<p>No media.</p>';
+            return;
+        }
+        mediaItems.forEach((item, index) => { // Added index here
+            const ti = document.createElement('div');
+            ti.classList.add('thumbnail-item');
+            ti.dataset.id = String(item.id);
+            ti.dataset.index = index; // Store index for easy retrieval
+            ti.style.backgroundImage = `url(/api/media/thumbnail/${item.id})`;
+
+            if (selectedMediaIds.has(item.id)) ti.classList.add('selected');
+
+            if (item.tags && item.tags.length > 0) {
+                const o = document.createElement('div');
+                o.className = 'thumbnail-tags-overlay';
+                item.tags.slice(0, 3).forEach(tn => {
+                    const s = document.createElement('span');
+                    s.className = 'thumbnail-tag';
+                    s.textContent = tn;
+                    s.dataset.tagName = tn;
+                    o.appendChild(s);
+                    s.addEventListener('click', (tagEvent) => {
+                        if (isDKeyPressed) {
+                            tagEvent.preventDefault();
+                            tagEvent.stopPropagation();
+                            handleRemoveTagFromMedia(item.id, tn, s);
+                        }
+                    });
+                });
+                if (item.tags.length > 3) {
+                    const m = document.createElement('span');
+                    m.className = 'thumbnail-tag-more';
+                    m.textContent = '...';
+                    o.appendChild(m);
+                }
+                ti.appendChild(o);
+            }
+
+            ti.addEventListener('click', (e) => {
+                e.preventDefault();
+                const clickedItemId = parseInt(item.id);
+                const currentIndex = parseInt(ti.dataset.index); // Get current index
+
+                if (isShiftKeyPressed && lastClickedPhotoIndex !== -1 && lastClickedPhotoIndex < currentMediaItems.length) {
+                    const start = Math.min(lastClickedPhotoIndex, currentIndex);
+                    const end = Math.max(lastClickedPhotoIndex, currentIndex);
+
+                    // For range selection, we typically want to ensure all items in the range get selected.
+                    // The behavior for items outside the range can vary (e.g. keep their state, or deselect).
+                    // This implementation will select everything in the range.
+                    // It does not explicitly deselect items outside the range that were previously selected.
+                    for (let i = start; i <= end; i++) {
+                        const itemInRange = currentMediaItems[i];
+                        if (itemInRange) {
+                            selectedMediaIds.add(itemInRange.id);
+                            // Update visual state for all items in range
+                            const thumbElementInRange = photoWall.querySelector(`.thumbnail-item[data-id='${itemInRange.id}']`);
+                            if (thumbElementInRange) {
+                                thumbElementInRange.classList.add('selected');
+                            }
+                        }
+                    }
+                    // Note: lastClickedPhotoIndex is NOT updated here, so the anchor remains for further shift-clicks.
+                } else if (isTKeyPressed) {
+                    handleQuickTagging(clickedItemId, ti);
+                    lastClickedPhotoIndex = currentIndex; // Update anchor on T+click as well
+                } else if (isXKeyPressed) {
+                    openImageViewer(clickedItemId);
+                    lastClickedPhotoIndex = currentIndex; // Update anchor
+                } else {
+                    // Normal click: toggle selection and set as anchor
+                    toggleSelection(ti, clickedItemId);
+                    lastClickedPhotoIndex = currentIndex;
+                }
+                console.log('Selected IDs:', Array.from(selectedMediaIds), 'Last clicked index:', lastClickedPhotoIndex);
+            });
+            photoWall.appendChild(ti);
+        });
+    }
     function toggleSelection(el, id) { const numId = parseInt(id); if(selectedMediaIds.has(numId)){selectedMediaIds.delete(numId);el.classList.remove('selected')}else{selectedMediaIds.add(numId);el.classList.add('selected')} console.log('Current selection IDs:',Array.from(selectedMediaIds)); }
     function updatePaginationControls() { if(pageInfoSpan)pageInfoSpan.textContent=`Page ${currentPage} of ${totalPages}`;if(prevPageBtn)prevPageBtn.disabled=currentPage<=1;if(nextPageBtn)nextPageBtn.disabled=currentPage>=totalPages }
     async function fetchOrgPaths() { try{const r=await fetch('/api/org_paths');const d=await r.json();if(orgPathsList){orgPathsList.innerHTML='';d.forEach(p=>{const l=document.createElement('li');l.textContent=p;orgPathsList.appendChild(l)})}}catch(e){} }

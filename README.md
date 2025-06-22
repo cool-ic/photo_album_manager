@@ -37,7 +37,9 @@ A web application for managing local photo and video libraries, built with Pytho
         *   **Error Handling:** If the user's code is empty, has a syntax error, causes a runtime error, or doesn't define `api_select`, the filter will default to being permissive (showing all items). `print()` statements in the filter code will output to the server console.
 
 *   **Media Management:**
-    *   **Selection:** Left-click to select/deselect photos (visual border feedback).
+    *   **Selection:**
+        *   Left-click to select/deselect individual photos (visual border feedback). This also sets the anchor for range selection.
+        *   Shift + Left-click on another photo to select all photos between the last non-shift clicked photo (anchor) and the current one.
     *   **Deletion:** "Delete Selected" button moves selected media items to a pre-configured archive path. The view is refreshed automatically.
 
 *   **User Interface:**
@@ -158,7 +160,8 @@ A web application for managing local photo and video libraries, built with Pytho
     *   实现缩略图缓存策略以提高加载速度。
     *   **feature1.1.1【每行照片数 Photos per Row】**：用户可通过菜单栏控件调整每行展示的照片数量，预览图大小随之自适应缩放。
     *   **feature1.1.2【选择与查看 Select & View】**：
-        *   左键单击图片可选中/取消选中该图片。
+        *   左键单击图片可选中/取消选中该图片（并设定为范围选择的起始点）。
+        *   按住【Shift键 + 左键单击】另一张图片，可选中这两张图片之间的所有图片（包含这两张）。
         *   按住【X键 + 左键单击】图片可查看原图。
         *   原图查看模式下，支持使用左右方向键切换上一张/下一张图片，按【ESC键】退出查看。
     *   **feature1.1.3【D+左键删除标签 D+Click to Remove Tag】**：在照片墙的缩略图上，当鼠标悬停于某个显示的标签上时，按下【D键 + 左键单击】该标签，即可从当前照片移除这一个特定标签。
