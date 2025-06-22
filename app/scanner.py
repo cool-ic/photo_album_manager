@@ -110,12 +110,27 @@ def scan_libraries():
 
     scanner_logger.info(f"Total supported media files found across all libraries: {total_files_found_in_fs}")
 
-    existing_media_in_db = {media.filepath: media for media in Media.query.all()}
-    scanner_logger.debug(f"Found {len(existing_media_in_db)} media items currently in database.")
+    # Phase 1: Mark all items as potentially inaccessible
+    # We commit this separately to ensure this state is captured before further processing
+    # if the scan is interrupted.
+    # However, for a single transaction, we might defer commit until the end.
+    # For simplicity and clarity of this step, let's make it part of the main transaction.
+    # If performance becomes an issue on very large DBs, this could be optimized.
+    scanner_logger.info("Marking all existing database media as potentially inaccessible before scan verification...")
+    all_db_media_count = Media.query.update({Media.is_accessible: False})
+    # db.session.commit() # Decided to commit at the end of the scan for atomicity.
+    scanner_logger.info(f"Marked {all_db_media_count} items. Note: is_accessible will be set to True for found/updated items.")
+
+
+    existing_media_in_db = {media.filepath: media for media in Media.query.all()} # Re-fetch or use the updated objects if session is managed
+    scanner_logger.debug(f"Found {len(existing_media_in_db)} media items currently in database (after initial marking).")
+
     processed_paths_in_fs = set() # Keep track of paths found in this scan run
     items_added_count = 0
     items_updated_count = 0
-    items_removed_count = 0
+    # items_removed_count = 0 # Will be items_marked_inaccessible_or_retained_as_inaccessible
+    items_made_accessible_count = 0
+    items_newly_marked_inaccessible_fs = 0 # Files that disappeared from an active ORG_PATH
 
     for media_data in all_media_files_in_fs:
         filepath = media_data["filepath"]
@@ -153,39 +168,52 @@ def scan_libraries():
                 media_item.filesize != filesize or
                 media_item.capture_time != effective_capture_time or
                 media_item.media_type != media_data["media_type"] or
-                media_item.org_path != media_data["org_path"] or # If file moved between managed org_paths
-                media_item.filename != media_data["filename"]): # If filename changed (though filepath is primary key)
+                media_item.org_path != media_data["org_path"] or
+                media_item.filename != media_data["filename"] or
+                media_item.is_accessible is not True): # Also update if it was marked inaccessible
 
-                scanner_logger.debug(f"UPDATING metadata for: {filepath}")
+                scanner_logger.debug(f"UPDATING metadata (and/or marking accessible) for: {filepath}")
                 media_item.modification_time = modification_time
                 media_item.filesize = filesize
                 media_item.capture_time = effective_capture_time
                 media_item.media_type = media_data["media_type"]
                 media_item.org_path = media_data["org_path"]
                 media_item.filename = media_data["filename"]
+                media_item.is_accessible = True # Mark as accessible
                 items_updated_count += 1
+            elif media_item.is_accessible is not True: # No metadata change, but was marked inaccessible
+                scanner_logger.debug(f"Marking item as accessible (no other metadata changes): {filepath}")
+                media_item.is_accessible = True
+                items_made_accessible_count +=1 # Count this separately
             # else:
-                # scanner_logger.debug(f"No changes detected for existing item: {filepath}")
+                # scanner_logger.debug(f"No changes detected for existing item: {filepath}, already accessible.")
         else:
             scanner_logger.debug(f"ADDING new media: {filepath}")
             media_item = Media(
                 filepath=filepath, org_path=media_data["org_path"],
                 filename=media_data["filename"], capture_time=effective_capture_time,
                 modification_time=modification_time, filesize=filesize,
-                media_type=media_data["media_type"]
+                media_type=media_data["media_type"],
+                is_accessible=True # New items are accessible
             )
             db.session.add(media_item)
             items_added_count += 1
 
-    # Identify and remove items from DB that are in a scanned org_path but no longer exist in FS
-    scanned_org_path_roots_set = set(ORG_PATHS) # Ensure it's a set for efficient 'in' check
-    for path_in_db, media_item_in_db in existing_media_in_db.items():
-        # Only consider deleting if the item's original library path was part of this scan session
-        if media_item_in_db.org_path in scanned_org_path_roots_set:
-            if path_in_db not in processed_paths_in_fs: # And if it wasn't found in the FS scan
-                scanner_logger.debug(f"REMOVING media no longer found in a scanned library: {path_in_db}")
-                db.session.delete(media_item_in_db)
-                items_removed_count += 1
+    # Phase 3: Identify items in DB that are part of an active ORG_PATH but were not found in FS.
+    # These are files that were deleted from the disk from a still-configured library.
+    # Instead of deleting them from DB, mark them as is_accessible = False.
+    # Items from ORG_PATHS that are no longer in config.py will remain is_accessible=False
+    # from the initial marking phase and won't be touched here.
+
+    current_configured_org_paths = set(ORG_PATHS)
+    for db_media_item in existing_media_in_db.values(): # Iterate through all items fetched at start of scan
+        if db_media_item.org_path in current_configured_org_paths: # If its library is still configured
+            if db_media_item.filepath not in processed_paths_in_fs: # But the file itself is no longer on disk
+                if db_media_item.is_accessible is True: # And it was previously accessible
+                    scanner_logger.info(f"Marking as inaccessible (file deleted from disk): {db_media_item.filepath}")
+                    db_media_item.is_accessible = False
+                    items_newly_marked_inaccessible_fs += 1
+        # else: item's org_path is not in current ORG_PATHS, it remains is_accessible=False from initial step.
 
     try:
         db.session.commit()
@@ -194,4 +222,5 @@ def scan_libraries():
         db.session.rollback()
         scanner_logger.error(f"Error committing changes to database: {e}", exc_info=True)
 
-    scanner_logger.info(f"Library scan finished. Added: {items_added_count}, Updated: {items_updated_count}, Removed: {items_removed_count}. Total in DB now: {Media.query.count()}.")
+    total_accessible_in_db = Media.query.filter_by(is_accessible=True).count()
+    scanner_logger.info(f"Library scan finished. Added: {items_added_count}, Updated: {items_updated_count}, Newly Inaccessible (FS delete): {items_newly_marked_inaccessible_fs}. Total accessible in DB: {total_accessible_in_db} (Total in DB: {Media.query.count()}).")

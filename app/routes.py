@@ -144,7 +144,7 @@ def list_media():
     sort_order = request.args.get('sort_order', 'desc', type=str)
     routes_logger.debug(f"GET /api/media: p={page},pp={per_page_arg},sb='{sort_by}',so='{sort_order}'")
 
-    query = Media.query
+    query = Media.query.filter_by(is_accessible=True) # Only fetch accessible media
     order_column_map = {
         'capture_time': Media.capture_time,
         'modification_time': Media.modification_time,

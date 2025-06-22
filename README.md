@@ -7,10 +7,11 @@ A web application for managing local photo and video libraries, built with Pytho
 *   **Media Organization & Viewing:**
     *   **Photo Wall:** Displays media in a responsive grid. Thumbnails are square-cropped and cached.
     *   **Configurable Layout:** Users can adjust the number of "Photos per Row," which dynamically changes thumbnail sizes.
+    *   **Library Scanning & Visibility:** The application scans configured `ORG_PATHS`. Media from paths that are removed from the configuration (or become inaccessible) are hidden from view but their records remain in the database. Similarly, files deleted from disk within an active library path are also hidden rather than their database records being deleted. The UI only displays accessible media.
     *   **Navigation:** Supports pagination for large libraries.
     *   **Image Viewer:** "X + Left-click" opens media in a full-size modal viewer with keyboard navigation (Left/Right arrows for prev/next, ESC to close).
     *   **Sorting:** Media can be sorted by capture time, modification time, filepath, or filename (ascending/descending). If EXIF capture time is unavailable, the file's modification time is used as a fallback; if that's also unavailable, it defaults to 1999-01-01.
-    *   **Refresh:** A "Refresh" button rescans libraries and updates the view according to current filters and sort order.
+    *   **Refresh:** A "Refresh" button rescans libraries (updating visibility status and adding new files) and updates the view according to current filters and sort order.
 
 *   **Tag Management:**
     *   **Global Tags:** Add or delete tags from a global list via the "Tag Management" modal. Deleting a global tag removes it from all associated media.
@@ -122,7 +123,12 @@ A web application for managing local photo and video libraries, built with Pytho
 
 1.  **简洁核心**：无需任何冗余功能，不需要“用户”的概念，不需要注册，不需admin权限。
 2.  **路径配置**：在Python后端代码中直接指定若干图片库的根路径（`ORG_PATHS`）。
-3.  **图库定义**：每一个 `ORG_PATHS` 下的路径代表一个图库，该路径下的所有照片和视频均属于此图库。图库内部默认排序顺序为拍摄时间，也可按文件名排序。
+3.  **图库定义与内容同步**：每一个 `ORG_PATHS` 下的路径代表一个图库。应用启动或用户点击“刷新”时，会扫描这些已配置的路径：
+    *   新发现的媒体文件将被添加到数据库，并标记为“可访问”。
+    *   原先在数据库中但已从磁盘上删除（位于当前仍配置的 `ORG_PATHS` 内）的媒体文件，其记录在数据库中会被标记为“不可访问”并从用户界面隐藏，但记录不会被删除。
+    *   如果某个曾配置过的 `ORG_PATHS` 整个从 `config.py` 文件中移除或其路径失效，该旧路径下的所有媒体记录同样会因在扫描中未被找到而被标记/保留为“不可访问”，并从用户界面隐藏，数据仍保留在数据库中。
+    *   应用界面仅显示数据库中标记为“可访问”的媒体。
+    *   图库内部默认排序顺序为拍摄时间，也可按文件名排序。
 4.  **标签系统**：
     *   支持为每张照片打上若干个标签（tag）。
     *   标签信息使用SQLite数据库存储，设计轻量，适用于十万量级的照片管理。
