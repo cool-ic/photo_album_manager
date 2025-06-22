@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveFilterFavoriteBtn = document.getElementById('save-filter-favorite-btn');
     const favoriteFiltersListUl = document.getElementById('favorite-filters-list');
     const noFavoriteFiltersMessage = document.getElementById('no-favorite-filters-message');
-    const LOCALSTORAGE_FILTER_FAVORITES_KEY = 'photoAlbumManagerFilterFavorites';
+    // const LOCALSTORAGE_FILTER_FAVORITES_KEY = 'photoAlbumManagerFilterFavorites'; // Removed
 
     // CodeMirror instance for filter input
     let filterCodeEditor = null;
@@ -45,51 +45,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // "Hide Videos" checkbox
     const hideVideosCheckbox = document.getElementById('hide-videos-checkbox');
 
-    // --- Filter Favorites Functions ---
-    function loadFilterFavorites() {
-        const favoritesJson = localStorage.getItem(LOCALSTORAGE_FILTER_FAVORITES_KEY);
+    // --- Filter Favorites Functions (API-based) ---
+    async function loadFilterFavorites() {
         try {
-            const favorites = JSON.parse(favoritesJson);
+            const response = await fetch('/api/filters/favorites');
+            if (!response.ok) {
+                console.error("Failed to load favorite filters:", response.status, await response.text());
+                return [];
+            }
+            const favorites = await response.json();
             return Array.isArray(favorites) ? favorites : [];
         } catch (e) {
+            console.error("Error fetching favorite filters:", e);
             return [];
         }
     }
 
-    function saveFilterFavorites(favoritesArray) {
-        localStorage.setItem(LOCALSTORAGE_FILTER_FAVORITES_KEY, JSON.stringify(favoritesArray));
-    }
-
-    function addFilterFavorite(snippet) {
+    async function addFilterFavorite(snippet) {
         if (!snippet || !snippet.trim()) {
             alert("Cannot save an empty filter snippet.");
             return;
         }
-        const favorites = loadFilterFavorites();
-        // Optional: Prevent duplicates
-        if (favorites.includes(snippet)) {
-            // alert("This filter snippet is already in your favorites.");
-            // return;
-            // Or allow duplicates, current behavior allows duplicates.
+        try {
+            const response = await fetch('/api/filters/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: snippet })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert(`Failed to save favorite: ${result.error || response.statusText}`);
+                return;
+            }
+            if (result.message && result.message.includes("already exists")) {
+                // Optionally alert user or just refresh list which will show it
+                console.log("Favorite already exists, refreshing list.");
+            }
+            renderFilterFavorites(); // Re-fetch and re-render the list
+        } catch (e) {
+            console.error("Error saving favorite filter:", e);
+            alert("Error saving favorite filter.");
         }
-        favorites.push(snippet);
-        saveFilterFavorites(favorites);
-        renderFilterFavorites(); // Re-render the list
     }
 
-    function deleteFilterFavorite(indexToDelete) {
-        let favorites = loadFilterFavorites();
-        if (indexToDelete >= 0 && indexToDelete < favorites.length) {
-            favorites.splice(indexToDelete, 1);
-            saveFilterFavorites(favorites);
-            renderFilterFavorites();
+    async function deleteFilterFavorite(favoriteId) {
+        if (!confirm("Are you sure you want to delete this favorite filter?")) return;
+        try {
+            const response = await fetch(`/api/filters/favorites/${favoriteId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                const result = await response.json();
+                alert(`Failed to delete favorite: ${result.error || response.statusText}`);
+                return;
+            }
+            renderFilterFavorites(); // Re-fetch and re-render the list
+        } catch (e) {
+            console.error("Error deleting favorite filter:", e);
+            alert("Error deleting favorite filter.");
         }
     }
 
-    function renderFilterFavorites() {
+    async function renderFilterFavorites() {
         if (!favoriteFiltersListUl || !noFavoriteFiltersMessage) return;
 
-        const favorites = loadFilterFavorites();
+        const favorites = await loadFilterFavorites(); // Now async
         favoriteFiltersListUl.innerHTML = ''; // Clear existing items
 
         if (favorites.length === 0) {
@@ -99,13 +119,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         noFavoriteFiltersMessage.style.display = 'none';
 
-        favorites.forEach((snippet, index) => {
+        favorites.forEach(favoriteItem => { // favoriteItem is {id, code}
             const li = document.createElement('li');
+            // Using existing inline styles for now, can be moved to CSS
             li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #eee; margin-bottom: 4px; background-color: #fff; border-radius: 3px;';
 
             const snippetText = document.createElement('span');
-            snippetText.textContent = snippet.length > 60 ? snippet.substring(0, 57) + '...' : snippet; // Truncate if long
-            snippetText.title = snippet; // Show full snippet on hover
+            const snippet = favoriteItem.code;
+            snippetText.textContent = snippet.length > 60 ? snippet.substring(0, 57) + '...' : snippet;
+            snippetText.title = snippet;
             snippetText.style.cssText = 'flex-grow: 1; margin-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default;';
 
             const btnContainer = document.createElement('div');
@@ -113,22 +135,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const loadBtn = document.createElement('button');
             loadBtn.textContent = 'Load';
-            loadBtn.className = 'load-favorite-btn'; // Added class
-            // loadBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
+            loadBtn.className = 'load-favorite-btn';
             loadBtn.onclick = () => {
                 if (filterCodeEditor) {
                     filterCodeEditor.setValue(snippet);
-                    filterCodeEditor.refresh(); // Ensure it's rendered correctly
-                } else if (filterFunctionInput) { // Fallback if CodeMirror not init
+                    filterCodeEditor.refresh();
+                } else if (filterFunctionInput) {
                     filterFunctionInput.value = snippet;
                 }
             };
 
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Del';
-            deleteBtn.className = 'delete-favorite-btn'; // Added class
-            // deleteBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
-            deleteBtn.onclick = () => deleteFilterFavorite(index);
+            deleteBtn.className = 'delete-favorite-btn';
+            deleteBtn.dataset.id = favoriteItem.id; // Store ID for deletion
+            deleteBtn.onclick = () => deleteFilterFavorite(favoriteItem.id); // Pass ID
 
             btnContainer.appendChild(loadBtn);
             btnContainer.appendChild(deleteBtn);

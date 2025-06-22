@@ -1,7 +1,8 @@
 from flask import current_app, jsonify, request, send_from_directory, abort, render_template, session
-from .models import db, Media, Tag
+from .models import db, Media, Tag, FavoriteFilter
 from app.tag_manager import get_all_global_tags, add_global_tag, delete_global_tag, add_tags_to_media, remove_tags_from_media
 from app.image_utils import generate_thumbnail, get_thumbnail_path
+from sqlalchemy.exc import IntegrityError
 from app.utils import execute_user_filter_function
 from app.scanner import scan_libraries
 from app.file_utils import move_media_to_archive
@@ -337,3 +338,71 @@ def get_media_thumbnail(media_id):
         routes_logger.error(f"Thumb path {thumb_dir} outside base {expected_thumb_base}. Aborting.")
         abort(403)
     return send_from_directory(thumb_dir, thumb_filename)
+
+# --- Favorite Filter Endpoints ---
+
+@current_app.route('/api/filters/favorites', methods=['GET'])
+def get_favorite_filters():
+    routes_logger.debug("GET /api/filters/favorites called")
+    try:
+        favorites = FavoriteFilter.query.order_by(FavoriteFilter.created_at.desc()).all()
+        return jsonify([{'id': fav.id, 'code': fav.code} for fav in favorites]), 200
+    except Exception as e:
+        routes_logger.error(f"Error fetching favorite filters: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch favorite filters.'}), 500
+
+@current_app.route('/api/filters/favorites', methods=['POST'])
+def add_favorite_filter():
+    routes_logger.debug("POST /api/filters/favorites called")
+    data = request.get_json()
+    if not data or not data.get('code'):
+        routes_logger.warning("Add favorite filter: Missing 'code' in payload.")
+        return jsonify({'error': 'Missing "code" in request body.'}), 400
+
+    code_snippet = data['code'].strip()
+    if not code_snippet:
+        routes_logger.warning("Add favorite filter: Code snippet is empty.")
+        return jsonify({'error': 'Code snippet cannot be empty.'}), 400
+
+    # Optional: Add length validation for code_snippet if desired
+
+    new_favorite = FavoriteFilter(code=code_snippet)
+    try:
+        db.session.add(new_favorite)
+        db.session.commit()
+        routes_logger.info(f"Favorite filter added with ID {new_favorite.id}.")
+        return jsonify({'id': new_favorite.id, 'code': new_favorite.code, 'message': 'Favorite filter saved.'}), 201
+    except IntegrityError:
+        db.session.rollback()
+        # This happens if unique=True on code and the code already exists.
+        # We can either return an error, or fetch the existing one and return it as if it was just added.
+        # For simplicity, let's inform the user it already exists.
+        existing = FavoriteFilter.query.filter_by(code=code_snippet).first()
+        if existing:
+             routes_logger.warning(f"Attempted to add duplicate favorite filter: {existing.id}")
+             return jsonify({'id': existing.id, 'code': existing.code, 'message': 'This filter already exists in favorites.'}), 200 # Or 409 Conflict
+        else: # Should not happen if IntegrityError was due to unique constraint on code
+             routes_logger.error(f"IntegrityError on adding favorite filter, but could not find existing by code: {code_snippet}", exc_info=True)
+             return jsonify({'error': 'Failed to save favorite filter due to a database conflict.'}), 500
+    except Exception as e:
+        db.session.rollback()
+        routes_logger.error(f"Error saving favorite filter: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to save favorite filter.'}), 500
+
+@current_app.route('/api/filters/favorites/<int:favorite_id>', methods=['DELETE'])
+def delete_favorite_filter(favorite_id):
+    routes_logger.debug(f"DELETE /api/filters/favorites/{favorite_id} called")
+    try:
+        favorite = FavoriteFilter.query.get(favorite_id)
+        if not favorite:
+            routes_logger.warning(f"Favorite filter with ID {favorite_id} not found for deletion.")
+            return jsonify({'error': 'Favorite filter not found.'}), 404
+
+        db.session.delete(favorite)
+        db.session.commit()
+        routes_logger.info(f"Favorite filter with ID {favorite_id} deleted.")
+        return jsonify({'message': 'Favorite filter deleted successfully.'}), 200
+    except Exception as e:
+        db.session.rollback()
+        routes_logger.error(f"Error deleting favorite filter ID {favorite_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to delete favorite filter.'}), 500

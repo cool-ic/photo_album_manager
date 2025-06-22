@@ -33,6 +33,15 @@ media_tag = db.Table('media_tag',
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
 )
 
+class FavoriteFilter(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    # name = db.Column(db.String(100), nullable=True) # Optional: for named favorites
+    code = db.Column(db.Text, nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<FavoriteFilter {self.id}: {self.code[:30]}...>'
+
 def init_db(app):
     # Define the database URI.
     # The database file will be created inside the 'data' directory.
