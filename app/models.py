@@ -13,6 +13,7 @@ class Media(db.Model):
     modification_time = db.Column(db.DateTime, nullable=False)
     filesize = db.Column(db.Integer, nullable=False) # size in bytes
     media_type = db.Column(db.String(50), nullable=False) # 'image' or 'video'
+    is_accessible = db.Column(db.Boolean, default=True, nullable=False, server_default='1') # True if part of current ORG_PATHS and exists
 
     tags = db.relationship('Tag', secondary='media_tag', backref=db.backref('media_items', lazy='dynamic'))
 

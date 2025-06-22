@@ -142,9 +142,18 @@ def list_media():
     per_page_arg = request.args.get('per_page', 20, type=int)
     sort_by = request.args.get('sort_by', 'capture_time', type=str)
     sort_order = request.args.get('sort_order', 'desc', type=str)
-    routes_logger.debug(f"GET /api/media: p={page},pp={per_page_arg},sb='{sort_by}',so='{sort_order}'")
+    media_types_filter_str = request.args.get('media_types_filter', '', type=str) # e.g., "image" or "image,video"
 
-    query = Media.query
+    routes_logger.debug(f"GET /api/media: p={page},pp={per_page_arg},sb='{sort_by}',so='{sort_order}', types='{media_types_filter_str}'")
+
+    query = Media.query.filter_by(is_accessible=True) # Only fetch accessible media
+
+    if media_types_filter_str:
+        allowed_types = [t.strip() for t in media_types_filter_str.lower().split(',') if t.strip()]
+        if allowed_types:
+            query = query.filter(Media.media_type.in_(allowed_types))
+            routes_logger.debug(f"Filtering by media types: {allowed_types}")
+
     order_column_map = {
         'capture_time': Media.capture_time,
         'modification_time': Media.modification_time,

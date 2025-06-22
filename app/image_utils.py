@@ -41,6 +41,9 @@ def generate_thumbnail(media_item, size=DEFAULT_THUMBNAIL_SIZE, force_generate=F
     try:
         img = Image.open(media_item.filepath)
 
+        # Apply EXIF orientation correction before any other processing
+        img = ImageOps.exif_transpose(img)
+
         # Convert to RGB if it's a palette-based image (e.g., some PNGs) or has alpha, to ensure JPEG saving works.
         if img.mode == 'P' or img.mode == 'RGBA' or img.mode == 'LA':
             img = img.convert('RGB')

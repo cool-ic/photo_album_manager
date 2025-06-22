@@ -7,10 +7,12 @@ A web application for managing local photo and video libraries, built with Pytho
 *   **Media Organization & Viewing:**
     *   **Photo Wall:** Displays media in a responsive grid. Thumbnails are square-cropped and cached.
     *   **Configurable Layout:** Users can adjust the number of "Photos per Row," which dynamically changes thumbnail sizes.
+    *   **Video Visibility Toggle:** A checkbox in the menu allows users to "Show Photos Only (Hide Videos)", dynamically filtering the displayed media types based on this preference.
+    *   **Library Scanning & Visibility:** The application scans configured `ORG_PATHS`. Media from paths that are removed from the configuration (or become inaccessible) are hidden from view but their records remain in the database. Similarly, files deleted from disk within an active library path are also hidden rather than their database records being deleted. The UI only displays accessible media.
     *   **Navigation:** Supports pagination for large libraries.
     *   **Image Viewer:** "X + Left-click" opens media in a full-size modal viewer with keyboard navigation (Left/Right arrows for prev/next, ESC to close).
-    *   **Sorting:** Media can be sorted by capture time, modification time, filepath, or filename (ascending/descending). Missing EXIF capture times default to 1999-01-01.
-    *   **Refresh:** A "Refresh" button rescans libraries and updates the view according to current filters and sort order.
+    *   **Sorting:** Media can be sorted by capture time, modification time, filepath, or filename (ascending/descending). If EXIF capture time is unavailable, the file's modification time is used as a fallback; if that's also unavailable, it defaults to 1999-01-01.
+    *   **Refresh:** A "Refresh" button rescans libraries (updating visibility status and adding new files) and updates the view according to current filters and sort order.
 
 *   **Tag Management:**
     *   **Global Tags:** Add or delete tags from a global list via the "Tag Management" modal. Deleting a global tag removes it from all associated media.
@@ -37,7 +39,9 @@ A web application for managing local photo and video libraries, built with Pytho
         *   **Error Handling:** If the user's code is empty, has a syntax error, causes a runtime error, or doesn't define `api_select`, the filter will default to being permissive (showing all items). `print()` statements in the filter code will output to the server console.
 
 *   **Media Management:**
-    *   **Selection:** Left-click to select/deselect photos (visual border feedback).
+    *   **Selection:**
+        *   Left-click to select/deselect individual photos (visual border feedback). This also sets the anchor for range selection.
+        *   Shift + Left-click on another photo to select all photos between the last non-shift clicked photo (anchor) and the current one.
     *   **Deletion:** "Delete Selected" button moves selected media items to a pre-configured archive path. The view is refreshed automatically.
 
 *   **User Interface:**
@@ -120,7 +124,12 @@ A web application for managing local photo and video libraries, built with Pytho
 
 1.  **简洁核心**：无需任何冗余功能，不需要“用户”的概念，不需要注册，不需admin权限。
 2.  **路径配置**：在Python后端代码中直接指定若干图片库的根路径（`ORG_PATHS`）。
-3.  **图库定义**：每一个 `ORG_PATHS` 下的路径代表一个图库，该路径下的所有照片和视频均属于此图库。图库内部默认排序顺序为拍摄时间，也可按文件名排序。
+3.  **图库定义与内容同步**：每一个 `ORG_PATHS` 下的路径代表一个图库。应用启动或用户点击“刷新”时，会扫描这些已配置的路径：
+    *   新发现的媒体文件将被添加到数据库，并标记为“可访问”。
+    *   原先在数据库中但已从磁盘上删除（位于当前仍配置的 `ORG_PATHS` 内）的媒体文件，其记录在数据库中会被标记为“不可访问”并从用户界面隐藏，但记录不会被删除。
+    *   如果某个曾配置过的 `ORG_PATHS` 整个从 `config.py` 文件中移除或其路径失效，该旧路径下的所有媒体记录同样会因在扫描中未被找到而被标记/保留为“不可访问”，并从用户界面隐藏，数据仍保留在数据库中。
+    *   应用界面仅显示数据库中标记为“可访问”的媒体。
+    *   图库内部默认排序顺序为拍摄时间，也可按文件名排序。
 4.  **标签系统**：
     *   支持为每张照片打上若干个标签（tag）。
     *   标签信息使用SQLite数据库存储，设计轻量，适用于十万量级的照片管理。
@@ -158,11 +167,13 @@ A web application for managing local photo and video libraries, built with Pytho
     *   实现缩略图缓存策略以提高加载速度。
     *   **feature1.1.1【每行照片数 Photos per Row】**：用户可通过菜单栏控件调整每行展示的照片数量，预览图大小随之自适应缩放。
     *   **feature1.1.2【选择与查看 Select & View】**：
-        *   左键单击图片可选中/取消选中该图片。
+        *   左键单击图片可选中/取消选中该图片（并设定为范围选择的起始点）。
+        *   按住【Shift键 + 左键单击】另一张图片，可选中这两张图片之间的所有图片（包含这两张）。
         *   按住【X键 + 左键单击】图片可查看原图。
         *   原图查看模式下，支持使用左右方向键切换上一张/下一张图片，按【ESC键】退出查看。
     *   **feature1.1.3【D+左键删除标签 D+Click to Remove Tag】**：在照片墙的缩略图上，当鼠标悬停于某个显示的标签上时，按下【D键 + 左键单击】该标签，即可从当前照片移除这一个特定标签。
-    *   **feature1.1.4【翻页 Page Navigation】**：支持“上一页”、“下一页”翻页功能。
+    *   **feature1.1.4【视频显示切换 Video Display Toggle】**：菜单栏提供“仅显示照片（隐藏视频）”复选框，用户勾选后，照片墙将仅展示图片类型的媒体，视频将被隐藏。取消勾选则同时显示图片和视频。
+    *   **feature1.1.5【翻页 Page Navigation】**：支持“上一页”、“下一页”翻页功能。
 
 *   **feature1.2：信息看板 Info Panel**
     *   网页右侧固定显示信息看板（Backend Info），展示当前系统中所有存在的全局标签（Global Tag List）以及所有已配置的图库根路径（`org_path`列表）。此看板为用户编写自定义筛选函数时提供参考。
@@ -187,7 +198,7 @@ A web application for managing local photo and video libraries, built with Pytho
 
 *   **feature1.6：排序 Sort By**
     *   菜单栏提供【排序 Sort By】控件，允许用户对当前显示的照片列表按照拍摄时间（`capture_time`）、文件修改时间（`modification_time`）或文件绝对路径（`filepath`）进行升序或降序排序。
-    *   若照片（尤其是老照片或手机截图）缺少EXIF拍摄时间信息，则其拍摄时间被视为1999年1月1日零点。
+    *   若照片缺少EXIF拍摄时间信息，则优先使用文件的修改时间作为拍摄时间；若修改时间也无法获取，则其拍摄时间被视为1999年1月1日零点。
 
 *   **feature1.7：删除选中照片 Delete Selected Photos**
     *   菜单栏提供【删除选中 Delete Selected】按钮。
