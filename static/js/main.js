@@ -317,12 +317,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if(addNewTagBtn) addNewTagBtn.addEventListener('click', async () => { const tn=newTagInput.value.trim();if(!tn){alert('Empty tag.');return}try{const r=await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:tn})});const rs=await r.json();if(r.ok){newTagInput.value='';populateManageTagsList();fetchGlobalTags()}else{alert(`Error: ${rs.error||'Unknown'}`)}}catch(e){alert('Network error.')} });
     if(batchTagBtn) batchTagBtn.addEventListener('click', async () => { const mIds=Array.from(selectedMediaIds);const tApply=Array.from(activeTagNamesForOperations);if(mIds.length===0||tApply.length===0){alert('Select photos & active tags.');return}const o=batchTagBtn.textContent;batchTagBtn.textContent='Tagging...';batchTagBtn.disabled=true;let sC=0,eC=0;for(const mId of mIds){try{const idx=currentMediaItems.findIndex(m=>m.id===mId);const r=await fetch(`/api/media/${mId}/tags`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag_names:tApply})});const rs=await r.json();if(r.ok){sC++;if(idx>-1)currentMediaItems[idx].tags=rs.tags}else{eC++}}catch(e){eC++}}batchTagBtn.textContent=o;batchTagBtn.disabled=false;alert(`Batch: ${sC} success, ${eC} failed.`);if(sC>0){renderPhotoWall(currentMediaItems);}});
 
-    function clearSelectionsAndActiveTags() {
+    function clearPhotoSelectionsOnly() {
         selectedMediaIds.clear();
+        lastClickedPhotoIndex = -1; // Reset anchor for shift-click
+        if (photoWall) { // Ensure photoWall is available
+            const currentlySelectedThumbs = photoWall.querySelectorAll('.thumbnail-item.selected');
+            currentlySelectedThumbs.forEach(thumb => thumb.classList.remove('selected'));
+        }
+        console.log("FRONTEND: Cleared photo selections only (selectedMediaIds and lastClickedPhotoIndex).");
+    }
+
+    function clearSelectionsAndActiveTags() {
+        clearPhotoSelectionsOnly(); // Clear photo selections first
         activeTagNamesForOperations.clear();
-        if(fetchGlobalTags)fetchGlobalTags();
-        console.log("FRONTEND: Cleared selections and active tags.");
-        if(photoWall && (document.readyState==='complete'||document.readyState==='interactive')) renderPhotoWall(currentMediaItems);
+        if (fetchGlobalTags) { // This will re-render the tag list, visually de-activating them
+            fetchGlobalTags();
+        }
+        console.log("FRONTEND: Cleared active tags as well.");
+        // No renderPhotoWall here, as fetchMedia is expected to follow if view needs full refresh
     }
 
     // --- Delete Selected Photos Logic ---
@@ -397,12 +409,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners & Other Functions (unchanged, minified for subtask focus) ---
-    if(sizeInput) sizeInput.addEventListener('change', () => { const newSize=parseInt(sizeInput.value);if(newSize>0){photosPerRow=newSize;photoWall.style.setProperty('--photos-per-row',photosPerRow);clearSelectionsAndActiveTags();fetchMedia(1)}else{sizeInput.value=photosPerRow} });
-    if(sortBySelect) sortBySelect.addEventListener('change', () => { currentSortBy=sortBySelect.value;clearSelectionsAndActiveTags();fetchMedia(1) });
-    if(sortOrderSelect) sortOrderSelect.addEventListener('change', () => { currentSortOrder=sortOrderSelect.value;clearSelectionsAndActiveTags();fetchMedia(1) });
+    if(sizeInput) sizeInput.addEventListener('change', () => { const newSize=parseInt(sizeInput.value);if(newSize>0){photosPerRow=newSize;photoWall.style.setProperty('--photos-per-row',photosPerRow);clearSelectionsAndActiveTags();fetchMedia(1)}else{sizeInput.value=photosPerRow} }); // Keep full clear for layout change
+    if(sortBySelect) sortBySelect.addEventListener('change', () => { currentSortBy=sortBySelect.value;clearPhotoSelectionsOnly();fetchMedia(1) }); // Preserve active tags
+    if(sortOrderSelect) sortOrderSelect.addEventListener('change', () => { currentSortOrder=sortOrderSelect.value;clearPhotoSelectionsOnly();fetchMedia(1) }); // Preserve active tags
     if(refreshBtn) refreshBtn.addEventListener('click', async () => {const o=refreshBtn.textContent;refreshBtn.textContent='Scanning...';refreshBtn.disabled=true;let s=false;try{const r=await fetch('/api/scan/trigger',{method:'POST'});const t=await r.json().catch(()=>({error:"JSON Error"}));if(!r.ok){alert(`Scan Error: ${t.error||'Unknown'}`);s=true}else{/* Alert removed */}}catch(e){alert('Scan Network Error.');s=true}refreshBtn.textContent=o;refreshBtn.disabled=false;if(!s){clearSelectionsAndActiveTags();fetchMedia(1);if(fetchOrgPaths)fetchOrgPaths();if(fetchGlobalTags)fetchGlobalTags();if(tagManagementModal && tagManagementModal.style.display==='block' && populateManageTagsList)populateManageTagsList()}});
-    if(prevPageBtn) prevPageBtn.addEventListener('click', () => { if(currentPage>1){clearSelectionsAndActiveTags();fetchMedia(currentPage-1)} });
-    if(nextPageBtn) nextPageBtn.addEventListener('click', () => { if(currentPage<totalPages){clearSelectionsAndActiveTags();fetchMedia(currentPage+1)} });
+    if(prevPageBtn) prevPageBtn.addEventListener('click', () => { if(currentPage>1){clearPhotoSelectionsOnly();fetchMedia(currentPage-1)} });
+    if(nextPageBtn) nextPageBtn.addEventListener('click', () => { if(currentPage<totalPages){clearPhotoSelectionsOnly();fetchMedia(currentPage+1)} });
     const allModals=document.querySelectorAll('.modal');const closeButtons=document.querySelectorAll('.close-modal-btn');function openModal(modalId){const modal=document.getElementById(modalId);if(modal)modal.style.display='block'}function closeModal(modalElement){if(modalElement)modalElement.style.display='none'}if(closeButtons)closeButtons.forEach(b=>{b.onclick=function(){closeModal(b.closest('.modal'))}});window.onclick=function(event){allModals.forEach(m=>{if(event.target==m)closeModal(m)})};let currentViewIndex=-1;function openImageViewer(mediaId){const i=currentMediaItems.findIndex(m=>m.id===mediaId);if(i===-1)return;currentViewIndex=i;updateImageViewerContent();openModal('image-viewer-modal')}function updateImageViewerContent(){if(currentViewIndex<0||currentViewIndex>=currentMediaItems.length)return;const item=currentMediaItems[currentViewIndex];if(fullImage)fullImage.src=`/api/media/file/${item.id}`;if(modalCaption)modalCaption.textContent=item.filename;if(modalPrev)modalPrev.style.display=currentViewIndex>0?'block':'none';if(modalNext)modalNext.style.display=currentViewIndex<currentMediaItems.length-1?'block':'none'}if(modalPrev)modalPrev.onclick=()=>{if(currentViewIndex>0){currentViewIndex--;updateImageViewerContent()}};if(modalNext)modalNext.onclick=()=>{if(currentViewIndex<currentMediaItems.length-1){currentViewIndex++;updateImageViewerContent()}};document.addEventListener('keydown',(event)=>{if(imageViewerModal && imageViewerModal.style.display==='block'){if(event.key==='ArrowLeft')modalPrev.click();else if(event.key==='ArrowRight')modalNext.click();else if(event.key==='Escape')closeModal(imageViewerModal)}});
     if(filterConfigBtn) filterConfigBtn.onclick=()=>{
         if(filterStatusDiv)filterStatusDiv.textContent='';
@@ -430,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(r.ok){
                 if(filterStatusDiv){filterStatusDiv.textContent='Filter applied!';filterStatusDiv.style.color='green'}
                 if(filterConfigModal)closeModal(filterConfigModal);
-                clearSelectionsAndActiveTags();
+                clearSelectionsAndActiveTags(); // Keep full clear, new filter context
                 fetchMedia(1);
             }else{
                 if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter error'}`;filterStatusDiv.style.color='red'}
@@ -445,12 +457,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (filterFunctionInput) {
             filterFunctionInput.value=''; // Fallback for plain textarea
         }
-        if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
+        if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}}); // Keep full clear
     if(tagManagementBtn) tagManagementBtn.onclick=()=>{if(tagManagementStatusDiv)tagManagementStatusDiv.textContent='';openModal('tag-management-modal');if(populateManageTagsList)populateManageTagsList()};
 
     if (hideVideosCheckbox) {
         hideVideosCheckbox.addEventListener('change', () => {
-            clearSelectionsAndActiveTags(); // Clear selections as the view is changing
+            clearPhotoSelectionsOnly(); // Preserve active tags
             fetchMedia(1); // Refetch media for page 1 with new filter state
         });
     }
