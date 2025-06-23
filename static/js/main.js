@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveFilterFavoriteBtn = document.getElementById('save-filter-favorite-btn');
     const favoriteFiltersListUl = document.getElementById('favorite-filters-list');
     const noFavoriteFiltersMessage = document.getElementById('no-favorite-filters-message');
-    const LOCALSTORAGE_FILTER_FAVORITES_KEY = 'photoAlbumManagerFilterFavorites';
+    // const LOCALSTORAGE_FILTER_FAVORITES_KEY = 'photoAlbumManagerFilterFavorites'; // Removed
 
     // CodeMirror instance for filter input
     let filterCodeEditor = null;
@@ -45,51 +45,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // "Hide Videos" checkbox
     const hideVideosCheckbox = document.getElementById('hide-videos-checkbox');
 
-    // --- Filter Favorites Functions ---
-    function loadFilterFavorites() {
-        const favoritesJson = localStorage.getItem(LOCALSTORAGE_FILTER_FAVORITES_KEY);
+    // --- Filter Favorites Functions (API-based) ---
+    async function loadFilterFavorites() {
         try {
-            const favorites = JSON.parse(favoritesJson);
+            const response = await fetch('/api/filters/favorites');
+            if (!response.ok) {
+                console.error("Failed to load favorite filters:", response.status, await response.text());
+                return [];
+            }
+            const favorites = await response.json();
             return Array.isArray(favorites) ? favorites : [];
         } catch (e) {
+            console.error("Error fetching favorite filters:", e);
             return [];
         }
     }
 
-    function saveFilterFavorites(favoritesArray) {
-        localStorage.setItem(LOCALSTORAGE_FILTER_FAVORITES_KEY, JSON.stringify(favoritesArray));
-    }
-
-    function addFilterFavorite(snippet) {
+    async function addFilterFavorite(snippet) {
         if (!snippet || !snippet.trim()) {
             alert("Cannot save an empty filter snippet.");
             return;
         }
-        const favorites = loadFilterFavorites();
-        // Optional: Prevent duplicates
-        if (favorites.includes(snippet)) {
-            // alert("This filter snippet is already in your favorites.");
-            // return;
-            // Or allow duplicates, current behavior allows duplicates.
+        try {
+            const response = await fetch('/api/filters/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: snippet })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                alert(`Failed to save favorite: ${result.error || response.statusText}`);
+                return;
+            }
+            if (result.message && result.message.includes("already exists")) {
+                // Optionally alert user or just refresh list which will show it
+                console.log("Favorite already exists, refreshing list.");
+            }
+            renderFilterFavorites(); // Re-fetch and re-render the list
+        } catch (e) {
+            console.error("Error saving favorite filter:", e);
+            alert("Error saving favorite filter.");
         }
-        favorites.push(snippet);
-        saveFilterFavorites(favorites);
-        renderFilterFavorites(); // Re-render the list
     }
 
-    function deleteFilterFavorite(indexToDelete) {
-        let favorites = loadFilterFavorites();
-        if (indexToDelete >= 0 && indexToDelete < favorites.length) {
-            favorites.splice(indexToDelete, 1);
-            saveFilterFavorites(favorites);
-            renderFilterFavorites();
+    async function deleteFilterFavorite(favoriteId) {
+        if (!confirm("Are you sure you want to delete this favorite filter?")) return;
+        try {
+            const response = await fetch(`/api/filters/favorites/${favoriteId}`, {
+                method: 'DELETE'
+            });
+            if (!response.ok) {
+                const result = await response.json();
+                alert(`Failed to delete favorite: ${result.error || response.statusText}`);
+                return;
+            }
+            renderFilterFavorites(); // Re-fetch and re-render the list
+        } catch (e) {
+            console.error("Error deleting favorite filter:", e);
+            alert("Error deleting favorite filter.");
         }
     }
 
-    function renderFilterFavorites() {
+    async function renderFilterFavorites() {
         if (!favoriteFiltersListUl || !noFavoriteFiltersMessage) return;
 
-        const favorites = loadFilterFavorites();
+        const favorites = await loadFilterFavorites(); // Now async
         favoriteFiltersListUl.innerHTML = ''; // Clear existing items
 
         if (favorites.length === 0) {
@@ -99,13 +119,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         noFavoriteFiltersMessage.style.display = 'none';
 
-        favorites.forEach((snippet, index) => {
+        favorites.forEach(favoriteItem => { // favoriteItem is {id, code}
             const li = document.createElement('li');
+            // Using existing inline styles for now, can be moved to CSS
             li.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; border-bottom: 1px solid #eee; margin-bottom: 4px; background-color: #fff; border-radius: 3px;';
 
             const snippetText = document.createElement('span');
-            snippetText.textContent = snippet.length > 60 ? snippet.substring(0, 57) + '...' : snippet; // Truncate if long
-            snippetText.title = snippet; // Show full snippet on hover
+            const snippet = favoriteItem.code;
+            snippetText.textContent = snippet.length > 60 ? snippet.substring(0, 57) + '...' : snippet;
+            snippetText.title = snippet;
             snippetText.style.cssText = 'flex-grow: 1; margin-right: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default;';
 
             const btnContainer = document.createElement('div');
@@ -113,22 +135,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const loadBtn = document.createElement('button');
             loadBtn.textContent = 'Load';
-            loadBtn.className = 'load-favorite-btn'; // Added class
-            // loadBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #007bff; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
+            loadBtn.className = 'load-favorite-btn';
             loadBtn.onclick = () => {
                 if (filterCodeEditor) {
                     filterCodeEditor.setValue(snippet);
-                    filterCodeEditor.refresh(); // Ensure it's rendered correctly
-                } else if (filterFunctionInput) { // Fallback if CodeMirror not init
+                    filterCodeEditor.refresh();
+                } else if (filterFunctionInput) {
                     filterFunctionInput.value = snippet;
                 }
             };
 
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Del';
-            deleteBtn.className = 'delete-favorite-btn'; // Added class
-            // deleteBtn.style.cssText = 'padding: 3px 6px; font-size: 0.8em; background-color: #dc3545; color: white; border: none; cursor: pointer; border-radius: 3px;'; // CSS will handle
-            deleteBtn.onclick = () => deleteFilterFavorite(index);
+            deleteBtn.className = 'delete-favorite-btn';
+            deleteBtn.dataset.id = favoriteItem.id; // Store ID for deletion
+            deleteBtn.onclick = () => deleteFilterFavorite(favoriteItem.id); // Pass ID
 
             btnContainer.appendChild(loadBtn);
             btnContainer.appendChild(deleteBtn);
@@ -317,12 +338,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if(addNewTagBtn) addNewTagBtn.addEventListener('click', async () => { const tn=newTagInput.value.trim();if(!tn){alert('Empty tag.');return}try{const r=await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:tn})});const rs=await r.json();if(r.ok){newTagInput.value='';populateManageTagsList();fetchGlobalTags()}else{alert(`Error: ${rs.error||'Unknown'}`)}}catch(e){alert('Network error.')} });
     if(batchTagBtn) batchTagBtn.addEventListener('click', async () => { const mIds=Array.from(selectedMediaIds);const tApply=Array.from(activeTagNamesForOperations);if(mIds.length===0||tApply.length===0){alert('Select photos & active tags.');return}const o=batchTagBtn.textContent;batchTagBtn.textContent='Tagging...';batchTagBtn.disabled=true;let sC=0,eC=0;for(const mId of mIds){try{const idx=currentMediaItems.findIndex(m=>m.id===mId);const r=await fetch(`/api/media/${mId}/tags`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag_names:tApply})});const rs=await r.json();if(r.ok){sC++;if(idx>-1)currentMediaItems[idx].tags=rs.tags}else{eC++}}catch(e){eC++}}batchTagBtn.textContent=o;batchTagBtn.disabled=false;alert(`Batch: ${sC} success, ${eC} failed.`);if(sC>0){renderPhotoWall(currentMediaItems);}});
 
-    function clearSelectionsAndActiveTags() {
+    function clearPhotoSelectionsOnly() {
         selectedMediaIds.clear();
+        lastClickedPhotoIndex = -1; // Reset anchor for shift-click
+        if (photoWall) { // Ensure photoWall is available
+            const currentlySelectedThumbs = photoWall.querySelectorAll('.thumbnail-item.selected');
+            currentlySelectedThumbs.forEach(thumb => thumb.classList.remove('selected'));
+        }
+        console.log("FRONTEND: Cleared photo selections only (selectedMediaIds and lastClickedPhotoIndex).");
+    }
+
+    function clearSelectionsAndActiveTags() {
+        clearPhotoSelectionsOnly(); // Clear photo selections first
         activeTagNamesForOperations.clear();
-        if(fetchGlobalTags)fetchGlobalTags();
-        console.log("FRONTEND: Cleared selections and active tags.");
-        if(photoWall && (document.readyState==='complete'||document.readyState==='interactive')) renderPhotoWall(currentMediaItems);
+        if (fetchGlobalTags) { // This will re-render the tag list, visually de-activating them
+            fetchGlobalTags();
+        }
+        console.log("FRONTEND: Cleared active tags as well.");
+        // No renderPhotoWall here, as fetchMedia is expected to follow if view needs full refresh
     }
 
     // --- Delete Selected Photos Logic ---
@@ -397,12 +430,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners & Other Functions (unchanged, minified for subtask focus) ---
-    if(sizeInput) sizeInput.addEventListener('change', () => { const newSize=parseInt(sizeInput.value);if(newSize>0){photosPerRow=newSize;photoWall.style.setProperty('--photos-per-row',photosPerRow);clearSelectionsAndActiveTags();fetchMedia(1)}else{sizeInput.value=photosPerRow} });
-    if(sortBySelect) sortBySelect.addEventListener('change', () => { currentSortBy=sortBySelect.value;clearSelectionsAndActiveTags();fetchMedia(1) });
-    if(sortOrderSelect) sortOrderSelect.addEventListener('change', () => { currentSortOrder=sortOrderSelect.value;clearSelectionsAndActiveTags();fetchMedia(1) });
+    if(sizeInput) sizeInput.addEventListener('change', () => { const newSize=parseInt(sizeInput.value);if(newSize>0){photosPerRow=newSize;photoWall.style.setProperty('--photos-per-row',photosPerRow);clearSelectionsAndActiveTags();fetchMedia(1)}else{sizeInput.value=photosPerRow} }); // Keep full clear for layout change
+    if(sortBySelect) sortBySelect.addEventListener('change', () => { currentSortBy=sortBySelect.value;clearPhotoSelectionsOnly();fetchMedia(1) }); // Preserve active tags
+    if(sortOrderSelect) sortOrderSelect.addEventListener('change', () => { currentSortOrder=sortOrderSelect.value;clearPhotoSelectionsOnly();fetchMedia(1) }); // Preserve active tags
     if(refreshBtn) refreshBtn.addEventListener('click', async () => {const o=refreshBtn.textContent;refreshBtn.textContent='Scanning...';refreshBtn.disabled=true;let s=false;try{const r=await fetch('/api/scan/trigger',{method:'POST'});const t=await r.json().catch(()=>({error:"JSON Error"}));if(!r.ok){alert(`Scan Error: ${t.error||'Unknown'}`);s=true}else{/* Alert removed */}}catch(e){alert('Scan Network Error.');s=true}refreshBtn.textContent=o;refreshBtn.disabled=false;if(!s){clearSelectionsAndActiveTags();fetchMedia(1);if(fetchOrgPaths)fetchOrgPaths();if(fetchGlobalTags)fetchGlobalTags();if(tagManagementModal && tagManagementModal.style.display==='block' && populateManageTagsList)populateManageTagsList()}});
-    if(prevPageBtn) prevPageBtn.addEventListener('click', () => { if(currentPage>1){clearSelectionsAndActiveTags();fetchMedia(currentPage-1)} });
-    if(nextPageBtn) nextPageBtn.addEventListener('click', () => { if(currentPage<totalPages){clearSelectionsAndActiveTags();fetchMedia(currentPage+1)} });
+    if(prevPageBtn) prevPageBtn.addEventListener('click', () => { if(currentPage>1){clearPhotoSelectionsOnly();fetchMedia(currentPage-1)} });
+    if(nextPageBtn) nextPageBtn.addEventListener('click', () => { if(currentPage<totalPages){clearPhotoSelectionsOnly();fetchMedia(currentPage+1)} });
     const allModals=document.querySelectorAll('.modal');const closeButtons=document.querySelectorAll('.close-modal-btn');function openModal(modalId){const modal=document.getElementById(modalId);if(modal)modal.style.display='block'}function closeModal(modalElement){if(modalElement)modalElement.style.display='none'}if(closeButtons)closeButtons.forEach(b=>{b.onclick=function(){closeModal(b.closest('.modal'))}});window.onclick=function(event){allModals.forEach(m=>{if(event.target==m)closeModal(m)})};let currentViewIndex=-1;function openImageViewer(mediaId){const i=currentMediaItems.findIndex(m=>m.id===mediaId);if(i===-1)return;currentViewIndex=i;updateImageViewerContent();openModal('image-viewer-modal')}function updateImageViewerContent(){if(currentViewIndex<0||currentViewIndex>=currentMediaItems.length)return;const item=currentMediaItems[currentViewIndex];if(fullImage)fullImage.src=`/api/media/file/${item.id}`;if(modalCaption)modalCaption.textContent=item.filename;if(modalPrev)modalPrev.style.display=currentViewIndex>0?'block':'none';if(modalNext)modalNext.style.display=currentViewIndex<currentMediaItems.length-1?'block':'none'}if(modalPrev)modalPrev.onclick=()=>{if(currentViewIndex>0){currentViewIndex--;updateImageViewerContent()}};if(modalNext)modalNext.onclick=()=>{if(currentViewIndex<currentMediaItems.length-1){currentViewIndex++;updateImageViewerContent()}};document.addEventListener('keydown',(event)=>{if(imageViewerModal && imageViewerModal.style.display==='block'){if(event.key==='ArrowLeft')modalPrev.click();else if(event.key==='ArrowRight')modalNext.click();else if(event.key==='Escape')closeModal(imageViewerModal)}});
     if(filterConfigBtn) filterConfigBtn.onclick=()=>{
         if(filterStatusDiv)filterStatusDiv.textContent='';
@@ -430,7 +463,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if(r.ok){
                 if(filterStatusDiv){filterStatusDiv.textContent='Filter applied!';filterStatusDiv.style.color='green'}
                 if(filterConfigModal)closeModal(filterConfigModal);
-                clearSelectionsAndActiveTags();
+                clearSelectionsAndActiveTags(); // Keep full clear, new filter context
                 fetchMedia(1);
             }else{
                 if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter error'}`;filterStatusDiv.style.color='red'}
@@ -445,12 +478,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (filterFunctionInput) {
             filterFunctionInput.value=''; // Fallback for plain textarea
         }
-        if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}});
+        if(filterStatusDiv){filterStatusDiv.textContent='Filter cleared!';filterStatusDiv.style.color='green'}clearSelectionsAndActiveTags();fetchMedia(1)}else{if(filterStatusDiv){filterStatusDiv.textContent=`Error: ${rs.error||'Filter clear error'}`;filterStatusDiv.style.color='red'}}}catch(e){if(filterStatusDiv){filterStatusDiv.textContent='Network error.';filterStatusDiv.style.color='red'}}}); // Keep full clear
     if(tagManagementBtn) tagManagementBtn.onclick=()=>{if(tagManagementStatusDiv)tagManagementStatusDiv.textContent='';openModal('tag-management-modal');if(populateManageTagsList)populateManageTagsList()};
 
     if (hideVideosCheckbox) {
         hideVideosCheckbox.addEventListener('change', () => {
-            clearSelectionsAndActiveTags(); // Clear selections as the view is changing
+            clearPhotoSelectionsOnly(); // Preserve active tags
             fetchMedia(1); // Refetch media for page 1 with new filter state
         });
     }

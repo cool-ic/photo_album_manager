@@ -33,7 +33,7 @@ A web application for managing local photo and video libraries, built with Pytho
         *   `media.media_type`: String, e.g., `'image'` or `'video'`.
         *   `media.id`: Integer, the database ID of the media item.
     *   **Enhanced Editor:** The input for the filter code uses a CodeMirror editor, providing Python syntax highlighting, line numbers, and better editing capabilities.
-    *   **Filter Favorites:** Users can save frequently used filter snippets to their browser's `localStorage`, and then quickly load or delete them from a list within the filter modal.
+    *   **Filter Favorites:** Users can save frequently used filter snippets. These favorites are stored in the database, shared among all users, and persist across sessions. They can be quickly loaded or deleted from a list within the filter modal.
     *   **Execution:** The provided Python code is executed directly by the server's Python interpreter.
         *   **Security Note:** No sandboxing (like `RestrictedPython`) is currently applied. Users should ensure any filter code is trusted.
         *   **Error Handling:** If the user's code is empty, has a syntax error, causes a runtime error, or doesn't define `api_select`, the filter will default to being permissive (showing all items). `print()` statements in the filter code will output to the server console.
@@ -63,7 +63,7 @@ A web application for managing local photo and video libraries, built with Pytho
 *   **Data Storage:**
     *   Media metadata and tags: SQLite database (`data/photo_album.sqlite`).
     *   Thumbnails: Generated on demand and cached in `data/thumbnails/`.
-    *   Filter Code Favorites: Browser `localStorage`.
+    *   Filter Code Favorites: SQLite database (shared globally, stored in `favorite_filter` table).
 
 ## Setup Instructions
 
@@ -187,7 +187,7 @@ A web application for managing local photo and video libraries, built with Pytho
         *   查看已收藏的筛选代码片段列表。
         *   点击列表中的条目，可将其快速加载到编辑器中。
         *   从收藏夹中删除不需要的代码片段。
-        *   此功能使用浏览器 `localStorage` 存储，收藏夹内容保留在用户本地浏览器中。
+        *   此功能将收藏的筛选代码存储在服务器数据库中，因此收藏夹内容对所有用户共享，并在不同浏览器或电脑上保持一致。
     *   点击“确定 Apply Filter”后，后端将根据提供的函数筛选照片，照片墙仅展示符合条件的图像。若函数为空或无效，则显示所有图像。
 
 *   **feature1.4：会话隔离 Session Isolation**
