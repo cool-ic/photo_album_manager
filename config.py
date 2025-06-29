@@ -37,7 +37,7 @@ ARCHIVE_PATH = '/mnt/c/Users/root/Desktop/ac' # Default sample path
 
 # --- Supported File Extensions (lowercase) ---
 # You can extend these lists if you have other common media file types.
-SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp']
+SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.heic', '.heif']
 SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv']
 
 

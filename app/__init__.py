@@ -3,6 +3,18 @@ from flask_session import Session # Import Session
 import os
 
 from .models import db, init_db as init_models_db
+import logging # For HEIC registration logging
+
+# Attempt to register HEIC opener from pillow-heif
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    logging.info("Successfully registered HEIF opener with Pillow.")
+except ImportError:
+    logging.warning("pillow-heif not found or could not be imported. HEIC/HEIF support will be disabled.")
+except Exception as e:
+    logging.error(f"An error occurred during HEIF opener registration: {e}", exc_info=True)
+
 
 def create_app(config_pyfile_path=None):
     app = Flask(__name__,

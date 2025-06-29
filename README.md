@@ -6,6 +6,7 @@ A web application for managing local photo and video libraries, built with Pytho
 
 *   **Media Organization & Viewing:**
     *   **Photo Wall:** Displays media in a responsive grid. Thumbnails are square-cropped and cached.
+    *   **Format Support:** Supports common image formats including JPEG, PNG, GIF, BMP, TIFF, WebP, and HEIC/HEIF (via `pillow-heif` library). Video files are listed but thumbnails are not currently generated for them.
     *   **Configurable Layout:** Users can adjust the number of "Photos per Row," which dynamically changes thumbnail sizes.
     *   **Video Visibility Toggle:** A checkbox in the menu allows users to "Show Photos Only (Hide Videos)", dynamically filtering the displayed media types based on this preference.
     *   **Library Scanning & Visibility:** The application scans configured `ORG_PATHS`. Media from paths that are removed from the configuration (or become inaccessible) are hidden from view but their records remain in the database. Similarly, files deleted from disk within an active library path are also hidden rather than their database records being deleted. The UI only displays accessible media.
@@ -52,13 +53,14 @@ A web application for managing local photo and video libraries, built with Pytho
 *   **General Notes:**
     *   No user accounts or registration needed.
     *   Designed for managing personal photo libraries.
+    *   HEIC/HEIF support relies on the `pillow-heif` library and its system dependency `libheif`.
     *   Duplicate tagging on a photo has no effect.
     *   Destructive operations (deleting global tags, deleting photos) require user confirmation. Quick/batch tagging do not.
     *   Interrupting operations (applying filters, refresh, delete, sort) will reset photo selections.
 
 ## Technical Overview
 
-*   **Backend:** Python with Flask framework, SQLAlchemy for ORM with an SQLite database.
+*   **Backend:** Python with Flask framework, SQLAlchemy for ORM with an SQLite database, Pillow and `pillow-heif` for image processing.
 *   **Frontend:** HTML, CSS, vanilla JavaScript. CodeMirror for the filter code editor.
 *   **Data Storage:**
     *   Media metadata and tags: SQLite database (`data/photo_album.sqlite`).
@@ -86,6 +88,10 @@ A web application for managing local photo and video libraries, built with Pytho
     ```bash
     pip install -r requirements.txt
     ```
+    **Note on HEIC/HEIF Support:** For HEIC/HEIF image support, `pillow-heif` is included in `requirements.txt`. This library often relies on the system-level library `libheif`. If you encounter issues with HEIC files after installation (e.g., they are not recognized or thumbnails fail), you may need to install `libheif` manually on your operating system. Common commands:
+    *   Debian/Ubuntu: `sudo apt-get install libheif-dev`
+    *   macOS (using Homebrew): `brew install libheif`
+    *   Other systems: Check your package manager for `libheif` or `libheif-devel`.
 
 4.  **Configure Paths in `config.py`:**
     *   Open `config.py`.
@@ -125,6 +131,7 @@ A web application for managing local photo and video libraries, built with Pytho
 1.  **简洁核心**：无需任何冗余功能，不需要“用户”的概念，不需要注册，不需admin权限。
 2.  **路径配置**：在Python后端代码中直接指定若干图片库的根路径（`ORG_PATHS`）。
 3.  **图库定义与内容同步**：每一个 `ORG_PATHS` 下的路径代表一个图库。应用启动或用户点击“刷新”时，会扫描这些已配置的路径：
+    *   支持常见图像格式（JPEG, PNG, GIF, BMP, TIFF, WebP, HEIC, HEIF等）和视频格式。HEIC/HEIF格式支持依赖 `pillow-heif` 及其系统库 `libheif` (具体安装请参考英文Setup部分)。
     *   新发现的媒体文件将被添加到数据库，并标记为“可访问”。
     *   原先在数据库中但已从磁盘上删除（位于当前仍配置的 `ORG_PATHS` 内）的媒体文件，其记录在数据库中会被标记为“不可访问”并从用户界面隐藏，但记录不会被删除。
     *   如果某个曾配置过的 `ORG_PATHS` 整个从 `config.py` 文件中移除或其路径失效，该旧路径下的所有媒体记录同样会因在扫描中未被找到而被标记/保留为“不可访问”，并从用户界面隐藏，数据仍保留在数据库中。
